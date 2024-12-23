@@ -21,13 +21,17 @@ export default function SharedProfilePage() {
     setMounted(true);
     
     const fetchProfile = async () => {
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+      try {        
         const response = await fetch(
-          `${baseUrl}/api/sharenite/profile/${params.username}`,
-          { cache: 'force-cache' }
+          `/api/sharenite/profile/${params.username}`,
+          { 
+            cache: 'force-cache',
+            headers: {
+              'Accept': 'application/json'
+            }
+          }
         );
-        
+                
         if (!response.ok) {
           const data = await response.json();
           throw new Error(data.error || 'Failed to load profile');
