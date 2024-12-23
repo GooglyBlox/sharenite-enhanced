@@ -301,7 +301,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
 
             <div className="mt-auto">
             {isSidebarOpen ? (
-                <div className="bg-zinc-800 rounded p-4">
+                <div className="rounded p-4">
                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsProfileModalOpen(true)}>
                     <div className="w-10 h-10 rounded bg-zinc-700 flex items-center justify-center">
                     <span className="text-lg font-semibold text-zinc-300">
