@@ -7,6 +7,7 @@ interface CacheData {
   games: GameDetailed[];
   timestamp: number;
   lastUpdated: Date;
+  profile?: ShareniteProfile;
 }
 
 type UpdateCallback = (games: GameDetailed[]) => void;
@@ -117,7 +118,15 @@ export class ShareniteAPI {
   
       const gameData = JSON.parse(jsonStr);
   
-      const detailsResponse = await fetch(`/api/sharenite/game?url=${encodeURIComponent(gameData.url.replace('.json', ''))}`);
+      const baseUrl = typeof window === 'undefined' 
+        ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        : '';
+      
+      const detailsResponse = await fetch(
+        `${baseUrl}/api/sharenite/game?url=${encodeURIComponent(gameData.url.replace('.json', ''))}`,
+        { cache: 'force-cache' }
+      );
+  
       if (!detailsResponse.ok) {
         throw new Error(`Failed to fetch game details: ${detailsResponse.statusText}`);
       }
@@ -126,8 +135,8 @@ export class ShareniteAPI {
   
       return {
         ...game,
-        playTime: details.playTime,
-        playCount: details.playCount,
+        playTime: details.playTime || "Never played",
+        playCount: details.playCount || 0,
         platform: details.platform,
         added: details.added || gameData.created_at,
         modified: details.modified || gameData.updated_at,
@@ -166,12 +175,13 @@ export class ShareniteAPI {
     }
   }
 
-  private setCache(games: GameDetailed[]) {
+  private setCache(games: GameDetailed[], profile?: ShareniteProfile) {
     try {
       const cacheData: CacheData = {
         games,
         timestamp: Date.now(),
-        lastUpdated: new Date()
+        lastUpdated: new Date(),
+        profile
       };
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
     } catch (error) {
@@ -221,21 +231,30 @@ export class ShareniteAPI {
     }
   }
 
-  async fetchAllGames(useCache = true): Promise<{ games: GameDetailed[]; lastUpdated: Date | null }> {
+  async fetchAllGames(useCache = true): Promise<{ 
+    games: GameDetailed[]; 
+    lastUpdated: Date | null;
+    profile?: ShareniteProfile;
+  }> {
     const cached = this.getCache();
     
     if (useCache && cached?.games) {
       if (Date.now() - cached.timestamp > UPDATE_INTERVAL && !this.isUpdating) {
         this.fetchAndUpdateGames(cached.games).catch(console.error);
       }
-      return { games: cached.games, lastUpdated: cached.lastUpdated };
+      return { 
+        games: cached.games, 
+        lastUpdated: cached.lastUpdated,
+        profile: cached.profile 
+      };
     }
-
+  
     const games = await this.fetchAndUpdateGames();
-    return { games, lastUpdated: new Date() };
+    const profile = await this.validateProfile();
+    return { games, lastUpdated: new Date(), profile };
   }
 
-  async validateProfile(): Promise<ShareniteProfile | null> {
+  async validateProfile(): Promise<ShareniteProfile | undefined> {
     try {
       const html = await this.fetchHTML(`${this.baseUrl}/games`);
       const games = this.extractJsonFromHtml(html);
@@ -249,10 +268,10 @@ export class ShareniteAPI {
         };
       }
   
-      return null;
+      return undefined;
     } catch (error) {
       console.error('Error validating profile:', error);
-      return null;
+      return undefined;
     }
   }
 
