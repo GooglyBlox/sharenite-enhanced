@@ -2,7 +2,7 @@
 class CoverCache {
     private static instance: CoverCache;
     private cache: Map<string, { url: string | null; timestamp: number }>;
-    private CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+    private CACHE_DURATION = 24 * 60 * 60 * 1000;
   
     private constructor() {
       this.cache = new Map();

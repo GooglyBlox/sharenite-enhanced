@@ -44,7 +44,6 @@ export default function GameCover({ title, className }: GameCoverProps) {
             fetchTimeoutRef.current = setTimeout(fetchCover, 1000 * retryCountRef.current);
             return;
           }
-          throw new Error('Failed to fetch cover');
         }
         
         const data = await response.json();

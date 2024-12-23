@@ -88,19 +88,24 @@ export default function MainLayout({ username }: MainLayoutProps) {
   ): GameDetailed[] => {
     const filtered = [...games].filter(game => {
       if (!searchQuery) return true;
-
       const normalizedQuery = normalizeTitle(searchQuery);
       const normalizedTitle = normalizeTitle(game.title);
-
       return normalizedTitle.includes(normalizedQuery);
     });
-
+  
     return filtered.sort((a, b) => {
       if (sortOrder === 'alphabetical') {
         const titleA = normalizeTitle(a.title);
         const titleB = normalizeTitle(b.title);
         return titleA.localeCompare(titleB);
       } else {
+        const hasZeroPlaytimeA = a.playTime === "00:00:00";
+        const hasZeroPlaytimeB = b.playTime === "00:00:00";
+        
+        if (hasZeroPlaytimeA !== hasZeroPlaytimeB) {
+          return hasZeroPlaytimeA ? 1 : -1;
+        }
+        
         const dateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
         const dateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
         return dateB.getTime() - dateA.getTime();

@@ -100,7 +100,6 @@ export class ShareniteAPI {
   private async parseGameDetails(game: GameBasic): Promise<GameDetailed | null> {
     try {
       const html = await this.fetchHTML(`${this.baseUrl}/games/${game.id}`);
-  
       const jsonPattern = /{(?:&quot;|\").*?(?:&quot;|\")}/g;
       const matches = html.match(jsonPattern);
       
@@ -116,32 +115,34 @@ export class ShareniteAPI {
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>');
   
-      try {
-        const gameData = JSON.parse(jsonStr);
+      const gameData = JSON.parse(jsonStr);
   
-        return {
-          ...game,
-          playTime: null,
-          playCount: 0,
-          added: gameData.created_at,
-          modified: gameData.updated_at,
-          platform: null,
-          isCustomGame: false,
-          isInstalled: false,
-          isInstalling: false,
-          isLaunching: false,
-          isRunning: false,
-          isUninstalling: false,
-          userScore: null,
-          communityScore: null,
-          criticScore: null,
-          version: null,
-          notes: null
-        };
-      } catch (parseError) {
-        console.error(`Error parsing JSON for game ${game.id}:`, parseError);
-        return null;
+      const detailsResponse = await fetch(`/api/sharenite/game?url=${encodeURIComponent(gameData.url.replace('.json', ''))}`);
+      if (!detailsResponse.ok) {
+        throw new Error(`Failed to fetch game details: ${detailsResponse.statusText}`);
       }
+  
+      const details = await detailsResponse.json();
+  
+      return {
+        ...game,
+        playTime: details.playTime,
+        playCount: details.playCount,
+        platform: details.platform,
+        added: details.added || gameData.created_at,
+        modified: details.modified || gameData.updated_at,
+        isCustomGame: false,
+        isInstalled: false,
+        isInstalling: false,
+        isLaunching: false,
+        isRunning: false,
+        isUninstalling: false,
+        userScore: null,
+        communityScore: null,
+        criticScore: null,
+        version: null,
+        notes: null
+      };
     } catch (error) {
       console.error(`Error fetching details for game ${game.id}:`, error);
       return null;
