@@ -25,7 +25,7 @@ export default function ProfileModal({ username, games, onClose, isShared = fals
     }, 0);
 
     const recentGames = [...games]
-      .filter(game => game.playTime && game.playTime !== "Never played")
+      .filter(game => game.playTime && game.playTime !== "00:00:00")
       .sort((a, b) => {
         const dateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
         const dateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
