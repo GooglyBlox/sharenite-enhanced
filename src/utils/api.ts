@@ -21,11 +21,26 @@ type UpdateCallback = (games: GameDetailed[]) => void;
 
 export class ShareniteAPI {
   private baseUrl: string;
+  private username: string;
   private updateCallbacks: UpdateCallback[] = [];
   private isUpdating = false;
 
-  constructor(username: string) {
-    this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
+  constructor(username: string, fullUrl?: string) {
+    this.username = username;
+    if (fullUrl) {
+      const url = new URL(fullUrl);
+      const pathParts = url.pathname.split('/');
+      if (pathParts[1] === 'profiles' && pathParts[2]) {
+        this.username = pathParts[2];
+      }
+      this.baseUrl = `${url.origin}/profiles/${this.username}`;
+    } else {
+      this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
+    }
+  }
+
+  public getUsername(): string {
+    return this.username;
   }
 
   onUpdate(callback: UpdateCallback) {
@@ -353,7 +368,7 @@ export class ShareniteAPI {
         const lastUpdated = $(latestGame).find('abbr').attr('title') || '';
         
         return {
-          username: this.baseUrl.split('/').pop() || '',
+          username: this.username,
           totalGames,
           lastUpdated
         };

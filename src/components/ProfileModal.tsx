@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Share2, Clock, GamepadIcon, Trophy } from 'lucide-react';
+import { X, Copy, Check, Share2, Clock, GamepadIcon, Trophy, Edit2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { GameDetailed } from '@/types';
 
 interface ProfileModalProps {
   username: string;
+  nickname?: string | null;
+  onNicknameChange?: (newNickname: string) => void;
   totalGames: number;
   loadedGames: number;
   recentGames: GameDetailed[];
@@ -27,6 +29,8 @@ export default function ProfileModal({
 }: ProfileModalProps) {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [nickname, setNickname] = useState(localStorage.getItem('sharenite-nickname') || username);
 
   const calculateStats = () => {
     const playedGames = allGames.filter(game => 
@@ -65,7 +69,8 @@ export default function ProfileModal({
   };
 
   const generateShareLink = () => {
-    const link = `${window.location.origin}/profile/${username}`;
+    const originalUsername = localStorage.getItem('sharenite-username') || username;
+    const link = `${window.location.origin}/profile/${originalUsername}`;
     setShareLink(link);
   };
 
@@ -74,6 +79,11 @@ export default function ProfileModal({
     await navigator.clipboard.writeText(shareLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleNicknameSave = () => {
+    localStorage.setItem('sharenite-nickname', nickname);
+    setIsEditingNickname(false);
   };
 
   const stats = calculateStats();
@@ -86,11 +96,49 @@ export default function ProfileModal({
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center">
                 <span className="text-3xl font-semibold text-zinc-300">
-                  {username[0].toUpperCase()}
+                  {nickname[0].toUpperCase()}
                 </span>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-zinc-100">{username}</h2>
+                {isEditingNickname ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 text-2xl font-bold"
+                      placeholder="Enter nickname"
+                    />
+                    <button
+                      onClick={handleNicknameSave}
+                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        setNickname(localStorage.getItem('sharenite-nickname') || username);
+                        setIsEditingNickname(false);
+                      }}
+                      className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-zinc-100">{nickname}</h2>
+                    {!isShared && (
+                      <button
+                        onClick={() => setIsEditingNickname(true)}
+                        className="text-zinc-400 hover:text-zinc-300"
+                        title="Edit nickname"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <p className="text-zinc-400">Game Collection</p>
                 {isLoading && loadedGames < totalGames && (
                   <p className="text-sm text-zinc-500">

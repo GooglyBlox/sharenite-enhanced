@@ -16,14 +16,15 @@ const OnboardingSteps = [
   },
   {
     title: 'Connect Your Profile',
-    description: 'Enter your Sharenite username to get started',
-    instruction: 'You can find this in your Sharenite profile URL'
+    description: 'Enter your Sharenite profile URL to get started',
+    instruction: 'You can find this in your browser address bar when viewing your profile'
   }
 ];
 
 export default function Onboarding({ onComplete }: { onComplete: (username: string) => void }) {
   const [state, setState] = useState<OnboardingState>({
     step: 0,
+    url: '',
     isChecking: false
   });
 
@@ -33,15 +34,28 @@ export default function Onboarding({ onComplete }: { onComplete: (username: stri
       return;
     }
 
-    if (!state.username) {
-      setState(prev => ({ ...prev, error: 'Username is required' }));
+    if (!state.url) {
+      setState(prev => ({ ...prev, error: 'Profile URL is required' }));
       return;
     }
 
-    setState(prev => ({ ...prev, isChecking: true, error: undefined }));
-    
     try {
-      const api = new ShareniteAPI(state.username);
+      const url = new URL(state.url);
+      const pathParts = url.pathname.split('/');
+      const username = pathParts[2];
+
+      if (!url.hostname.includes('sharenite.link') || !username) {
+        setState(prev => ({ 
+          ...prev, 
+          error: 'Please enter a valid Sharenite profile URL',
+          isChecking: false 
+        }));
+        return;
+      }
+
+      setState(prev => ({ ...prev, isChecking: true, error: undefined }));
+      
+      const api = new ShareniteAPI(username, state.url);
       const profile = await api.validateProfile();
 
       if (!profile) {
@@ -53,12 +67,13 @@ export default function Onboarding({ onComplete }: { onComplete: (username: stri
         return;
       }
 
-      localStorage.setItem('sharenite-username', state.username);
-      onComplete(state.username);
+      localStorage.setItem('sharenite-username', username);
+      localStorage.setItem('sharenite-url', state.url);
+      onComplete(username);
     } catch (error) {
       setState(prev => ({ 
         ...prev, 
-        error: 'Error validating profile',
+        error: 'Please enter a valid URL',
         isChecking: false 
       }));
     }
@@ -83,18 +98,18 @@ export default function Onboarding({ onComplete }: { onComplete: (username: stri
             {state.step === 2 && (
               <div className="space-y-4 pt-8">
                 <div>
-                  <label htmlFor="username" className="block text-sm font-medium text-zinc-400 mb-2">
-                    Username
+                  <label htmlFor="url" className="block text-sm font-medium text-zinc-400 mb-2">
+                    Profile URL
                   </label>
                   <input
-                    id="username"
+                    id="url"
                     type="text"
                     className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg 
                              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
                              text-zinc-100"
-                    placeholder="e.g. google"
-                    value={state.username || ''}
-                    onChange={(e) => setState(prev => ({ ...prev, username: e.target.value }))}
+                    placeholder="https://www.sharenite.link/profiles/username/games"
+                    value={state.url}
+                    onChange={(e) => setState(prev => ({ ...prev, url: e.target.value }))}
                   />
                 </div>
                 <button

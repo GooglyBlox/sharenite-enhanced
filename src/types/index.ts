@@ -29,6 +29,7 @@ export interface GameDetailed extends GameBasic {
 
 export interface ShareniteProfile {
     username: string;
+    nickname?: string;
     totalGames: number;
     lastUpdated: string;
 }
@@ -48,7 +49,7 @@ export interface GameCache {
 }
 
 export interface OnboardingState {
-    username?: string;
+    url?: string;
     step: number;
     error?: string;
     isChecking: boolean;

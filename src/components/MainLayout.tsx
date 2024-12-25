@@ -37,6 +37,9 @@ export default function MainLayout({ username }: MainLayoutProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const apiRef = useRef<ShareniteAPI | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [nickname, setNickname] = useState<string | null>(
+      localStorage.getItem('sharenite-nickname')
+  );
 
   useEffect(() => {
     apiRef.current = new ShareniteAPI(username);
@@ -450,7 +453,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
                     </span>
                     </div>
                     <div>
-                    <div className="font-semibold text-zinc-100">{username}</div>
+                    <div className="font-semibold text-zinc-100">{nickname || username}</div>
                     <div className="text-sm text-zinc-400">View Profile</div>
                     </div>
                 </div>
@@ -574,6 +577,8 @@ export default function MainLayout({ username }: MainLayoutProps) {
         {isProfileModalOpen && (
             <ProfileModal
               username={username}
+              nickname={nickname}
+              onNicknameChange={(newNickname) => setNickname(newNickname)}
               totalGames={state.profile?.totalGames || state.games.length}
               loadedGames={state.games.length}
               recentGames={state.games
