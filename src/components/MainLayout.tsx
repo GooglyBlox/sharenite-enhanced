@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef } from 'react';
-import { Menu, Grid, List, RefreshCw, Clock, Plus, Trophy } from 'lucide-react';
+import { Menu, Grid, List, RefreshCw, Clock, Plus, Play, Heart, CheckSquare } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import GameCover from './GameCover';
 import ProfileModal from './ProfileModal';
+import GameActions from './GameActions';
 import Dropdown from './ui/dropdown';
 import SearchBar from './ui/searchbar';
 import { ShareniteAPI } from '@/utils/api';
@@ -12,7 +13,8 @@ import { GameDetailed, ShareniteState } from '@/types';
 interface MainLayoutState extends ShareniteState {
   isUpdating: boolean;
   lastUpdated: Date | null;
-  currentView: 'all' | 'recent' | 'not-started';
+  currentView: 'all' | 'recent' | 'not-started' | 'favorites' | 'current' | 'completed';
+  sortOrder: 'last-played' | 'most-played' | 'alphabetical' | 'recently-added' | 'platform' | 'playtime';
 }
 
 interface MainLayoutProps {
@@ -26,12 +28,12 @@ export default function MainLayout({ username }: MainLayoutProps) {
     viewMode: 'list',
     isUpdating: false,
     lastUpdated: null,
-    currentView: 'all'
+    currentView: 'all',
+    sortOrder: 'last-played'
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<'recent' | 'alphabetical'>('recent');
   const apiRef = useRef<ShareniteAPI | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
@@ -62,6 +64,50 @@ export default function MainLayout({ username }: MainLayoutProps) {
       .trim();
   };
 
+  const handleToggleFavorite = (gameId: string) => {
+    setState(prev => {
+      const updatedGames = prev.games.map(game =>
+        game.id === gameId
+          ? { ...game, isFavorite: !game.isFavorite }
+          : game
+      );
+  
+      if (apiRef.current) {
+        const game = updatedGames.find(g => g.id === gameId);
+        if (game) {
+          apiRef.current.updateGamePreferences(gameId, { isFavorite: game.isFavorite });
+        }
+      }
+  
+      return {
+        ...prev,
+        games: updatedGames
+      };
+    });
+  };
+  
+  const handleToggleCompleted = (gameId: string) => {
+    setState(prev => {
+      const updatedGames = prev.games.map(game =>
+        game.id === gameId
+          ? { ...game, isCompleted: !game.isCompleted }
+          : game
+      );
+  
+      if (apiRef.current) {
+        const game = updatedGames.find(g => g.id === gameId);
+        if (game) {
+          apiRef.current.updateGamePreferences(gameId, { isCompleted: game.isCompleted });
+        }
+      }
+  
+      return {
+        ...prev,
+        games: updatedGames
+      };
+    });
+  };
+
   const loadGames = async () => {
     if (!apiRef.current) return;
 
@@ -86,14 +132,20 @@ export default function MainLayout({ username }: MainLayoutProps) {
       }));
     }
   };
+  
+  const timeToMinutes = (timeStr: string): number => {
+    if (!timeStr || timeStr === "00:00:00") return 0;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return (hours * 60) + minutes;
+  };
 
   const getFilteredAndSortedGames = (
     games: GameDetailed[],
     searchQuery: string,
-    sortOrder: 'recent' | 'alphabetical'
+    sortOrder: MainLayoutState['sortOrder']
   ): GameDetailed[] => {
     let filtered = [...games];
-
+  
     switch (state.currentView) {
       case 'recent':
         filtered = filtered.filter(game => 
@@ -105,8 +157,23 @@ export default function MainLayout({ username }: MainLayoutProps) {
           !game.playTime || game.playTime === "00:00:00"
         );
         break;
+      case 'favorites':
+        filtered = filtered.filter(game => game.isFavorite);
+        break;
+      case 'current':
+        filtered = filtered.filter(game => {
+          if (!game.lastActivityDate) return false;
+          const lastPlayed = new Date(game.lastActivityDate);
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          return lastPlayed >= sevenDaysAgo;
+        });
+        break;
+      case 'completed':
+        filtered = filtered.filter(game => game.isCompleted);
+        break;
     }
-
+  
     if (searchQuery) {
       const normalizedQuery = normalizeTitle(searchQuery);
       filtered = filtered.filter(game => {
@@ -114,28 +181,44 @@ export default function MainLayout({ username }: MainLayoutProps) {
         return normalizedTitle.includes(normalizedQuery);
       });
     }
-
+  
     return filtered.sort((a, b) => {
-      if (sortOrder === 'alphabetical') {
-        const titleA = normalizeTitle(a.title);
-        const titleB = normalizeTitle(b.title);
-        return titleA.localeCompare(titleB);
-      } else {
-        const hasZeroPlaytimeA = a.playTime === "00:00:00";
-        const hasZeroPlaytimeB = b.playTime === "00:00:00";
+      switch (sortOrder) {
+        case 'most-played':
+          const timeA = timeToMinutes(a.playTime || "00:00:00");
+          const timeB = timeToMinutes(b.playTime || "00:00:00");
+          return timeB - timeA;
         
-        if (hasZeroPlaytimeA !== hasZeroPlaytimeB) {
-          return hasZeroPlaytimeA ? 1 : -1;
-        }
+        case 'alphabetical':
+          return normalizeTitle(a.title).localeCompare(normalizeTitle(b.title));
         
-        const dateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
-        const dateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
-        return dateB.getTime() - dateA.getTime();
+        case 'last-played':
+          const dateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
+          const dateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
+          return dateB.getTime() - dateA.getTime();
+        
+        case 'recently-added':
+          const addedA = a.added ? new Date(a.added) : new Date(0);
+          const addedB = b.added ? new Date(b.added) : new Date(0);
+          return addedB.getTime() - addedA.getTime();
+        
+        case 'platform':
+          return (a.platform || '').localeCompare(b.platform || '');
+        
+        case 'playtime':
+          const playtimeA = timeToMinutes(a.playTime || "00:00:00");
+          const playtimeB = timeToMinutes(b.playTime || "00:00:00");
+          return playtimeA - playtimeB;
+        
+        default:
+          const defaultDateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
+          const defaultDateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
+          return defaultDateB.getTime() - defaultDateA.getTime();
       }
     });
   };
 
-  const filteredGames = getFilteredAndSortedGames(state.games, searchQuery, sortOrder);
+  const filteredGames = getFilteredAndSortedGames(state.games, searchQuery, state.sortOrder);
 
   const formatLastUpdated = (date: Date) => {
     const now = new Date();
@@ -170,25 +253,39 @@ export default function MainLayout({ username }: MainLayoutProps) {
         <div className="aspect-video bg-zinc-700 rounded mb-4 relative overflow-hidden">
           <GameCover title={game.title} />
         </div>
-        <h3 className="text-lg font-semibold mb-2 text-zinc-100 line-clamp-1">{game.title}</h3>
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="text-lg font-semibold text-zinc-100 line-clamp-1">{game.title}</h3>
+          <GameActions 
+            game={game}
+            onToggleFavorite={handleToggleFavorite}
+            onToggleCompleted={handleToggleCompleted}
+          />
+        </div>
         {game.platform && (
           <p className="text-sm text-zinc-400">{game.platform}</p>
         )}
         <p className="text-sm text-zinc-400 mt-1">Last activity: {game.lastActivity}</p>
         {game.playTime && game.playTime !== "00:00:00" ? (
-        <p className="text-sm text-zinc-400 mt-1">Playtime: {game.playTime}</p>
+          <p className="text-sm text-zinc-400 mt-1">Playtime: {game.playTime}</p>
         ) : (
-        <p className="text-sm text-zinc-400 mt-1">Never played</p>
+          <p className="text-sm text-zinc-400 mt-1">Never played</p>
         )}
       </CardContent>
     </Card>
   );
-
+  
   const GameListItem = ({ game }: { game: GameDetailed }) => (
     <div className="bg-zinc-800 p-4 rounded hover:bg-zinc-700 transition-all">
       <div className="flex justify-between items-center">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-zinc-100 line-clamp-1">{game.title}</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-zinc-100 line-clamp-1">{game.title}</h3>
+            <GameActions 
+              game={game}
+              onToggleFavorite={handleToggleFavorite}
+              onToggleCompleted={handleToggleCompleted}
+            />
+          </div>
           {game.platform && (
             <p className="text-sm text-zinc-400">{game.platform}</p>
           )}
@@ -196,9 +293,9 @@ export default function MainLayout({ username }: MainLayoutProps) {
         <div className="text-right ml-4">
           <p className="text-sm text-zinc-300">{game.lastActivity}</p>
           {game.playTime && game.playTime !== "00:00:00" ? (
-          <p className="text-sm text-zinc-400">{game.playTime}</p>
+            <p className="text-sm text-zinc-400">{game.playTime}</p>
           ) : (
-          <p className="text-sm text-zinc-400">Never played</p>
+            <p className="text-sm text-zinc-400">Never played</p>
           )}
         </div>
       </div>
@@ -239,12 +336,36 @@ export default function MainLayout({ username }: MainLayoutProps) {
                     {isSidebarOpen && <span>All Games</span>}
                   </button>
                   <button
+                    onClick={() => setState(prev => ({ ...prev, currentView: 'current' }))}
+                    className={`w-full text-left px-4 py-2 rounded flex items-center gap-2
+                      ${state.currentView === 'current' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}
+                  >
+                    <Play size={20} />
+                    {isSidebarOpen && <span>Currently Playing</span>}
+                  </button>
+                  <button
                     onClick={() => setState(prev => ({ ...prev, currentView: 'recent' }))}
                     className={`w-full text-left px-4 py-2 rounded flex items-center gap-2
                       ${state.currentView === 'recent' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}
                   >
                     <Clock size={20} />
                     {isSidebarOpen && <span>Recently Played</span>}
+                  </button>
+                  <button
+                    onClick={() => setState(prev => ({ ...prev, currentView: 'favorites' }))}
+                    className={`w-full text-left px-4 py-2 rounded flex items-center gap-2
+                      ${state.currentView === 'favorites' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}
+                  >
+                    <Heart size={20} />
+                    {isSidebarOpen && <span>Favorites</span>}
+                  </button>
+                  <button
+                    onClick={() => setState(prev => ({ ...prev, currentView: 'completed' }))}
+                    className={`w-full text-left px-4 py-2 rounded flex items-center gap-2
+                      ${state.currentView === 'completed' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'}`}
+                  >
+                    <CheckSquare size={20} />
+                    {isSidebarOpen && <span>Completed</span>}
                   </button>
                   <button
                     onClick={() => setState(prev => ({ ...prev, currentView: 'not-started' }))}
@@ -338,7 +459,10 @@ export default function MainLayout({ username }: MainLayoutProps) {
               <div className="flex items-center space-x-4">
                 <h1 className="text-xl font-bold">
                   {state.currentView === 'all' && 'All Games'}
+                  {state.currentView === 'current' && 'Currently Playing'}
                   {state.currentView === 'recent' && 'Recently Played'}
+                  {state.currentView === 'favorites' && 'Favorites'}
+                  {state.currentView === 'completed' && 'Completed'}
                   {state.currentView === 'not-started' && 'Not Started'}
                 </h1>
                 {state.lastUpdated && (
@@ -361,11 +485,15 @@ export default function MainLayout({ username }: MainLayoutProps) {
 
                 <div className="flex gap-2">
                   <Dropdown
-                    value={sortOrder}
-                    onChange={(value) => setSortOrder(value as 'recent' | 'alphabetical')}
+                    value={state.sortOrder}
+                    onChange={(value) => setState(prev => ({ ...prev, sortOrder: value as MainLayoutState['sortOrder'] }))}
                     options={[
-                      { value: 'recent', label: 'Recently Played' },
-                      { value: 'alphabetical', label: 'Alphabetical' }
+                      { value: 'last-played', label: 'Last Played' },
+                      { value: 'most-played', label: 'Most Played' },
+                      { value: 'alphabetical', label: 'Alphabetical' },
+                      { value: 'recently-added', label: 'Recently Added' },
+                      { value: 'platform', label: 'Platform' },
+                      { value: 'playtime', label: 'Playtime (Low to High)' }
                     ]}
                     className="w-50"
                   />

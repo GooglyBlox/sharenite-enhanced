@@ -12,6 +12,8 @@ export interface GameDetailed extends GameBasic {
     playCount: number;
     added: string | null;
     modified: string | null;
+    isFavorite: boolean;
+    isCompleted: boolean;
     isCustomGame: boolean;
     isInstalled: boolean;
     isInstalling: boolean;

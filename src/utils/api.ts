@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import { GameBasic, GameDetailed, ShareniteProfile } from '@/types';
 
 const CACHE_KEY = 'sharenite-data';
+const PREFERENCES_KEY = 'sharenite-preferences';
 const UPDATE_INTERVAL = 1000 * 60 * 30;
 
 interface CacheData {
@@ -9,6 +10,11 @@ interface CacheData {
   timestamp: number;
   lastUpdated: Date;
   profile?: ShareniteProfile;
+}
+
+interface GamePreferences {
+  isFavorite: boolean;
+  isCompleted: boolean;
 }
 
 type UpdateCallback = (games: GameDetailed[]) => void;
@@ -31,6 +37,41 @@ export class ShareniteAPI {
 
   private notifyUpdates(games: GameDetailed[]) {
     this.updateCallbacks.forEach(callback => callback(games));
+  }
+
+  private getPreferences(): Record<string, GamePreferences> {
+    try {
+      const stored = localStorage.getItem(PREFERENCES_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+      return {};
+    }
+  }
+
+  private savePreferences(preferences: Record<string, GamePreferences>) {
+    try {
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+    }
+  }
+
+  public updateGamePreferences(gameId: string, updates: Partial<GamePreferences>) {
+    const preferences = this.getPreferences();
+    preferences[gameId] = {
+      ...preferences[gameId],
+      ...updates
+    };
+    this.savePreferences(preferences);
+
+    const cached = this.getCache();
+    if (cached) {
+      const updatedGames = cached.games.map(game => 
+        game.id === gameId ? { ...game, ...updates } : game
+      );
+      this.setCache(updatedGames, cached.profile);
+    }
   }
 
   private async fetchProfilePage(page = 1): Promise<string> {
@@ -100,6 +141,7 @@ export class ShareniteAPI {
       }
 
       const details = await response.json();
+      const preferences = this.getPreferences()[game.id] || {};
 
       return {
         ...game,
@@ -118,7 +160,9 @@ export class ShareniteAPI {
         communityScore: null,
         criticScore: null,
         version: null,
-        notes: null
+        notes: null,
+        isFavorite: preferences.isFavorite || false,
+        isCompleted: preferences.isCompleted || false
       };
     } catch (error) {
       console.error(`Error fetching details for game ${game.id}:`, error);
@@ -249,7 +293,6 @@ export class ShareniteAPI {
         currentPage++;
       }
   
-      // Do one final cache update to ensure everything is saved
       if (cacheUpdateTimeout) {
         clearTimeout(cacheUpdateTimeout);
       }
@@ -269,21 +312,31 @@ export class ShareniteAPI {
     profile?: ShareniteProfile;
   }> {
     const cached = this.getCache();
+    const preferences = this.getPreferences();
     
     if (useCache && cached?.games) {
+      const gamesWithPreferences = cached.games.map(game => ({
+        ...game,
+        ...preferences[game.id]
+      }));
+
       if (Date.now() - cached.timestamp > UPDATE_INTERVAL && !this.isUpdating) {
-        this.fetchAndUpdateGames(cached.games).catch(console.error);
+        this.fetchAndUpdateGames(gamesWithPreferences).catch(console.error);
       }
       return { 
-        games: cached.games, 
+        games: gamesWithPreferences, 
         lastUpdated: cached.lastUpdated,
         profile: cached.profile 
       };
     }
   
     const games = await this.fetchAndUpdateGames();
+    const gamesWithPreferences = games.map(game => ({
+      ...game,
+      ...preferences[game.id]
+    }));
     const profile = await this.validateProfile();
-    return { games, lastUpdated: new Date(), profile };
+    return { games: gamesWithPreferences, lastUpdated: new Date(), profile };
   }
 
   async validateProfile(): Promise<ShareniteProfile | undefined> {
@@ -296,7 +349,7 @@ export class ShareniteAPI {
       
       if (totalGames > 0) {
         const games = $('.list-group-item').toArray();
-        const latestGame = games[1]; // Skip header
+        const latestGame = games[1];
         const lastUpdated = $(latestGame).find('abbr').attr('title') || '';
         
         return {
