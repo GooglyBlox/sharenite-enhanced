@@ -144,9 +144,22 @@ export class ShareniteAPI {
     }
   }
 
-  private setCache(games: GameDetailed[], profile?: ShareniteProfile) {
+  private setCache(games: GameDetailed[], profile?: ShareniteProfile, partial = false) {
     try {
-      const cacheData: CacheData = {
+      if (partial) {
+        const existingCache = this.getCache();
+        if (existingCache) {
+          const existingGamesMap = new Map(existingCache.games.map(g => [g.id, g]));
+
+          games.forEach(game => {
+            existingGamesMap.set(game.id, game);
+          });
+
+          games = Array.from(existingGamesMap.values());
+        }
+      }
+
+      const cacheData = {
         games,
         timestamp: Date.now(),
         lastUpdated: new Date(),
@@ -163,33 +176,90 @@ export class ShareniteAPI {
     const updatedGames: GameDetailed[] = [...existingGames];
     let currentPage = 1;
     let hasNextPage = true;
-
+    let unchangedCount = 0;
+    const isInitialLoad = existingGames.length === 0;
+    let cacheUpdateTimeout: NodeJS.Timeout | null = null;
+  
+    const debouncedCacheUpdate = (games: GameDetailed[]) => {
+      if (cacheUpdateTimeout) {
+        clearTimeout(cacheUpdateTimeout);
+      }
+      cacheUpdateTimeout = setTimeout(() => {
+        this.setCache(games, undefined, true);
+      }, 1000);
+    };
+  
     try {
       while (hasNextPage) {
         const html = await this.fetchProfilePage(currentPage);
         const { games, hasNextPage: nextPage } = this.parseGamesList(html);
+        let pageUnchanged = true;
+        const pageUpdates: GameDetailed[] = [];
         
         for (const game of games) {
+          const existingGame = updatedGames.find(g => g.id === game.id);
+          
+          if (!existingGame) {
+            const details = await this.parseGameDetails(game);
+            if (details) {
+              updatedGames.push(details);
+              pageUpdates.push(details);
+              if (isInitialLoad) {
+                this.notifyUpdates(updatedGames);
+              }
+            }
+            pageUnchanged = false;
+            continue;
+          }
+  
           const details = await this.parseGameDetails(game);
-          if (details) {
+          if (!details) continue;
+  
+          const hasChanged = 
+            details.playTime !== existingGame.playTime ||
+            details.lastActivityDate !== existingGame.lastActivityDate ||
+            details.playCount !== existingGame.playCount;
+  
+          if (hasChanged) {
             const index = updatedGames.findIndex(g => g.id === details.id);
             if (index >= 0) {
               updatedGames[index] = details;
-            } else {
-              updatedGames.push(details);
+              pageUpdates.push(details);
+              this.notifyUpdates(updatedGames);
             }
-            this.notifyUpdates(updatedGames);
+            pageUnchanged = false;
           }
         }
-
+  
+        if (pageUpdates.length > 0) {
+          debouncedCacheUpdate(updatedGames);
+        }
+  
+        if (pageUnchanged) {
+          unchangedCount++;
+        } else {
+          unchangedCount = 0;
+        }
+  
+        if (!isInitialLoad && unchangedCount >= 3) {
+          break;
+        }
+  
         hasNextPage = nextPage;
         currentPage++;
       }
-
+  
+      // Do one final cache update to ensure everything is saved
+      if (cacheUpdateTimeout) {
+        clearTimeout(cacheUpdateTimeout);
+      }
       this.setCache(updatedGames);
       return updatedGames;
     } finally {
       this.isUpdating = false;
+      if (cacheUpdateTimeout) {
+        clearTimeout(cacheUpdateTimeout);
+      }
     }
   }
 

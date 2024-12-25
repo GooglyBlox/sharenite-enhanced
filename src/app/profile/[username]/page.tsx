@@ -78,7 +78,6 @@ export default function SharedProfilePage() {
         setLoadedCount(prev => prev + detailedGames.length);
       }
 
-      // Small delay between batches to avoid overwhelming the server
       await sleep(100);
     }
 
@@ -88,13 +87,11 @@ export default function SharedProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        // Get basic profile info
         const basicResponse = await fetch(`/api/sharenite/profile/${params.username}/basic`);
         if (!basicResponse.ok) throw new Error('Failed to load profile');
         const basicData = await basicResponse.json();
         setBasicProfile(basicData);
 
-        // Reset states
         setAllGames([]);
         setLoadedCount(0);
         
@@ -114,7 +111,6 @@ export default function SharedProfilePage() {
           hasMore = pageData.pagination.hasMore;
           currentPage++;
 
-          // Update UI with progress
           setAllGames([...allFetchedGames]);
           setLoadedCount(allFetchedGames.length);
         }
