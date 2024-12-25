@@ -26,16 +26,24 @@ export class ShareniteAPI {
   private isUpdating = false;
 
   constructor(username: string, fullUrl?: string) {
-    this.username = username;
     if (fullUrl) {
-      const url = new URL(fullUrl);
-      const pathParts = url.pathname.split('/');
-      if (pathParts[1] === 'profiles' && pathParts[2]) {
-        this.username = pathParts[2];
-      }
-      this.baseUrl = `${url.origin}/profiles/${this.username}`;
+        try {
+            const url = new URL(fullUrl);
+            const match = url.pathname.match(/\/profiles\/(.+?)\/games/);
+            if (match) {
+                this.username = match[1];
+                this.baseUrl = `${url.origin}/profiles/${this.username}`;
+            } else {
+                this.username = username;
+                this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
+            }
+        } catch {
+            this.username = username;
+            this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
+        }
     } else {
-      this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
+        this.username = username;
+        this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
     }
   }
 

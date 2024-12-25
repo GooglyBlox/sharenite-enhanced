@@ -30,52 +30,53 @@ export default function Onboarding({ onComplete }: { onComplete: (username: stri
 
   const handleNext = async () => {
     if (state.step < OnboardingSteps.length - 1) {
-      setState(prev => ({ ...prev, step: prev.step + 1 }));
-      return;
+        setState(prev => ({ ...prev, step: prev.step + 1 }));
+        return;
     }
 
     if (!state.url) {
-      setState(prev => ({ ...prev, error: 'Profile URL is required' }));
-      return;
+        setState(prev => ({ ...prev, error: 'Profile URL is required' }));
+        return;
     }
 
     try {
-      const url = new URL(state.url);
-      const pathParts = url.pathname.split('/');
-      const username = pathParts[2];
+        const url = new URL(state.url);
+        
+        const match = url.pathname.match(/\/profiles\/(.+?)\/games/);
+        const username = match ? match[1] : null;
 
-      if (!url.hostname.includes('sharenite.link') || !username) {
-        setState(prev => ({ 
-          ...prev, 
-          error: 'Please enter a valid Sharenite profile URL',
-          isChecking: false 
-        }));
-        return;
-      }
+        if (!url.hostname.includes('sharenite.link') || !username) {
+            setState(prev => ({ 
+                ...prev, 
+                error: 'Please enter a valid Sharenite profile URL',
+                isChecking: false 
+            }));
+            return;
+        }
 
-      setState(prev => ({ ...prev, isChecking: true, error: undefined }));
-      
-      const api = new ShareniteAPI(username, state.url);
-      const profile = await api.validateProfile();
+        setState(prev => ({ ...prev, isChecking: true, error: undefined }));
+        
+        const api = new ShareniteAPI(username, state.url);
+        const profile = await api.validateProfile();
 
-      if (!profile) {
-        setState(prev => ({ 
-          ...prev, 
-          error: 'Profile not found or not public',
-          isChecking: false 
-        }));
-        return;
-      }
+        if (!profile) {
+            setState(prev => ({ 
+                ...prev, 
+                error: 'Profile not found or not public',
+                isChecking: false 
+            }));
+            return;
+        }
 
-      localStorage.setItem('sharenite-username', username);
-      localStorage.setItem('sharenite-url', state.url);
-      onComplete(username);
+        localStorage.setItem('sharenite-username', username);
+        localStorage.setItem('sharenite-url', state.url);
+        onComplete(username);
     } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: 'Please enter a valid URL',
-        isChecking: false 
-      }));
+        setState(prev => ({ 
+            ...prev, 
+            error: 'Please enter a valid URL',
+            isChecking: false 
+        }));
     }
   };
 
