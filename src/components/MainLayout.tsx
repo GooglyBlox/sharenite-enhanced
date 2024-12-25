@@ -426,8 +426,14 @@ export default function MainLayout({ username }: MainLayoutProps) {
         {isProfileModalOpen && (
             <ProfileModal
                 username={username}
-                games={state.games}
+                totalGames={state.games.length}
+                loadedGames={state.games.length}
+                recentGames={state.games.filter(game => 
+                  game.playTime && game.playTime !== "00:00:00"
+                ).slice(0, 5)}
+                allGames={state.games}
                 onClose={() => setIsProfileModalOpen(false)}
+                isLoading={state.isLoading}
             />
         )}
       </div>

@@ -6,36 +6,39 @@ import { GameDetailed } from '@/types';
 
 interface ProfileModalProps {
   username: string;
-  games: GameDetailed[];
+  totalGames: number;
+  loadedGames: number;
+  recentGames: GameDetailed[];
+  allGames: GameDetailed[];
   onClose: () => void;
   isShared?: boolean;
+  isLoading?: boolean;
 }
 
-export default function ProfileModal({ username, games, onClose, isShared = false }: ProfileModalProps) {
+export default function ProfileModal({ 
+  username,
+  totalGames,
+  loadedGames,
+  recentGames,
+  allGames,
+  onClose,
+  isShared = false,
+  isLoading = false
+}: ProfileModalProps) {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const calculateStats = () => {
-    const totalGames = games.length;
-    const playedGames = games.filter(game => 
+    const playedGames = allGames.filter(game => 
       game.playTime && game.playTime !== "00:00:00"
     ).length;
-    const totalMinutes = games.reduce((total, game) => {
+    const totalMinutes = allGames.reduce((total, game) => {
       if (!game.playTime || game.playTime === "Never played") return total;
       const [hours, minutes] = game.playTime.split(':').map(Number);
       return total + (hours * 60) + minutes;
     }, 0);
 
-    const recentGames = [...games]
-      .filter(game => game.playTime && game.playTime !== "00:00:00")
-      .sort((a, b) => {
-        const dateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
-        const dateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
-        return dateB.getTime() - dateA.getTime();
-      })
-      .slice(0, 5);
-
-    const platforms = games.reduce((acc, game) => {
+    const platforms = allGames.reduce((acc, game) => {
       if (game.platform) {
         acc[game.platform] = (acc[game.platform] || 0) + 1;
       }
@@ -46,7 +49,7 @@ export default function ProfileModal({ username, games, onClose, isShared = fals
       .sort(([,a], [,b]) => b - a)
       .slice(0, 3);
 
-    return { totalGames, playedGames, totalMinutes, recentGames, topPlatforms };
+    return { totalGames, playedGames, totalMinutes, topPlatforms };
   };
 
   const formatPlaytime = (totalMinutes: number): string => {
@@ -89,6 +92,11 @@ export default function ProfileModal({ username, games, onClose, isShared = fals
               <div>
                 <h2 className="text-2xl font-bold text-zinc-100">{username}</h2>
                 <p className="text-zinc-400">Game Collection</p>
+                {isLoading && loadedGames < totalGames && (
+                  <p className="text-sm text-zinc-500">
+                    Loading... ({loadedGames}/{totalGames} games)
+                  </p>
+                )}
               </div>
             </div>
             {!isShared && (
@@ -109,10 +117,13 @@ export default function ProfileModal({ username, games, onClose, isShared = fals
                   <span>Collection</span>
                 </div>
                 <div className="text-2xl font-bold text-zinc-100">
-                  {stats.totalGames}
+                  {totalGames}
                 </div>
                 <div className="text-sm text-zinc-400">
-                  {Math.round((stats.playedGames / stats.totalGames) * 100)}% played
+                  {stats.playedGames > 0 ? 
+                    `${Math.round((stats.playedGames / totalGames) * 100)}% played` :
+                    'No games played yet'
+                  }
                 </div>
               </CardContent>
             </Card>
@@ -151,8 +162,8 @@ export default function ProfileModal({ username, games, onClose, isShared = fals
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-zinc-100 mb-4">Recently Played</h3>
             <div className="space-y-2">
-              {stats.recentGames.length > 0 ? (
-                stats.recentGames.map(game => (
+              {recentGames.length > 0 ? (
+                recentGames.map(game => (
                   <div 
                     key={game.id}
                     className="bg-zinc-800 p-3 rounded flex justify-between items-center"

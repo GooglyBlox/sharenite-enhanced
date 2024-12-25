@@ -240,4 +240,25 @@ export class ShareniteAPI {
       return undefined;
     }
   }
+
+  async fetchGamePage(page: number, pageSize: number): Promise<{
+    games: GameDetailed[];
+    hasMore: boolean;
+  }> {
+    const html = await this.fetchProfilePage(page);
+    const { games, hasNextPage } = this.parseGamesList(html);
+    
+    const detailedGames: GameDetailed[] = [];
+    for (const game of games.slice(0, pageSize)) {
+      const details = await this.parseGameDetails(game);
+      if (details) {
+        detailedGames.push(details);
+      }
+    }
+  
+    return {
+      games: detailedGames,
+      hasMore: hasNextPage
+    };
+  }
 }
