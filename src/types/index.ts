@@ -60,3 +60,11 @@ export interface ShareniteGameData {
     updated_at: string;
     url: string;
 }
+
+export interface RawGame {
+    id: string;
+    title: string;
+    lastActivity: string;
+    lastActivityDate: string;
+    url: string;
+  }

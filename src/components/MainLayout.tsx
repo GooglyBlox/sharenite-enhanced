@@ -425,15 +425,20 @@ export default function MainLayout({ username }: MainLayoutProps) {
 
         {isProfileModalOpen && (
             <ProfileModal
-                username={username}
-                totalGames={state.games.length}
-                loadedGames={state.games.length}
-                recentGames={state.games.filter(game => 
-                  game.playTime && game.playTime !== "00:00:00"
-                ).slice(0, 5)}
-                allGames={state.games}
-                onClose={() => setIsProfileModalOpen(false)}
-                isLoading={state.isLoading}
+              username={username}
+              totalGames={state.profile?.totalGames || state.games.length}
+              loadedGames={state.games.length}
+              recentGames={state.games
+                .filter(game => game.playTime && game.playTime !== "00:00:00")
+                .sort((a, b) => {
+                  const dateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
+                  const dateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
+                  return dateB.getTime() - dateA.getTime();
+                })
+                .slice(0, 5)}
+              allGames={state.games}
+              onClose={() => setIsProfileModalOpen(false)}
+              isLoading={state.isLoading}
             />
         )}
       </div>

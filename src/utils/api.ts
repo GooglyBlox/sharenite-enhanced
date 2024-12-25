@@ -104,19 +104,21 @@ export class ShareniteAPI {
       return {
         ...game,
         playTime: details.playTime || "00:00:00",
-        playCount: details.playCount,
-        platform: details.platform,
-        added: details.added,
-        modified: details.modified,
-        userScore: null,
-        communityScore: null,
-        criticScore: null,
+        playCount: details.playCount || 0,
+        platform: details.platform || null,
+        added: details.added || null,
+        modified: details.modified || null,
         isCustomGame: false,
         isInstalled: false,
         isInstalling: false,
         isLaunching: false,
         isRunning: false,
-        isUninstalling: false
+        isUninstalling: false,
+        userScore: null,
+        communityScore: null,
+        criticScore: null,
+        version: null,
+        notes: null
       };
     } catch (error) {
       console.error(`Error fetching details for game ${game.id}:`, error);
