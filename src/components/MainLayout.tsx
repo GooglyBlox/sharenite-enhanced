@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import GameCover from './GameCover';
 import ProfileModal from './ProfileModal';
 import GameActions from './GameActions';
+import GameThumbnail from './GameThumbnail';
 import Dropdown from './ui/dropdown';
 import SearchBar from './ui/searchbar';
 import { ShareniteAPI } from '@/utils/api';
@@ -284,30 +285,35 @@ export default function MainLayout({ username }: MainLayoutProps) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className="flex justify-between items-center">
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h3 className="text-lg font-semibold text-zinc-100 line-clamp-1">{game.title}</h3>
-              <div className={`transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-100'}`}>
-                <GameActions 
-                  game={game}
-                  onToggleFavorite={handleToggleFavorite}
-                  onToggleCompleted={handleToggleCompleted}
-                  showAll={isHovered}
-                />
-              </div>
-            </div>
-            {game.platform && (
-              <p className="text-sm text-zinc-400">{game.platform}</p>
-            )}
+        <div className="flex gap-4">
+          <div className="w-16 h-24 flex-shrink-0">
+            <GameThumbnail title={game.title} className="w-full h-full" />
           </div>
-          <div className="text-right ml-4">
-            <p className="text-sm text-zinc-300">{game.lastActivity}</p>
-            {game.playTime && game.playTime !== "00:00:00" ? (
-              <p className="text-sm text-zinc-400">{game.playTime}</p>
-            ) : (
-              <p className="text-sm text-zinc-400">Never played</p>
-            )}
+          <div className="flex-1 flex justify-between items-center">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-zinc-100 line-clamp-1">{game.title}</h3>
+                <div className={`transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-100'}`}>
+                  <GameActions 
+                    game={game}
+                    onToggleFavorite={handleToggleFavorite}
+                    onToggleCompleted={handleToggleCompleted}
+                    showAll={isHovered}
+                  />
+                </div>
+              </div>
+              {game.platform && (
+                <p className="text-sm text-zinc-400">{game.platform}</p>
+              )}
+            </div>
+            <div className="text-right ml-4">
+              <p className="text-sm text-zinc-300">{game.lastActivity}</p>
+              {game.playTime && game.playTime !== "00:00:00" ? (
+                <p className="text-sm text-zinc-400">{game.playTime}</p>
+              ) : (
+                <p className="text-sm text-zinc-400">Never played</p>
+              )}
+            </div>
           </div>
         </div>
       </div>

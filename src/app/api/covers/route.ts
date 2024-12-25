@@ -8,11 +8,16 @@ let tokenCache: { token: string; expiry: number } | null = null;
 interface IGDBGame {
   id: number;
   cover?: {
-    url: string;
+    image_id: string;
   };
   screenshots?: Array<{
-    url: string;
+    image_id: string;
   }>;
+}
+
+interface GameImages {
+  screenshot: string | null;
+  cover: string | null;
 }
 
 async function getAccessToken(): Promise<string> {
@@ -38,7 +43,7 @@ async function getAccessToken(): Promise<string> {
   return tokenCache.token;
 }
 
-async function searchGame(gameName: string, retryCount = 0): Promise<string | null> {
+async function searchGame(gameName: string, retryCount = 0): Promise<GameImages> {
   try {
     const token = await getAccessToken();
 
@@ -51,8 +56,8 @@ async function searchGame(gameName: string, retryCount = 0): Promise<string | nu
         'Content-Type': 'text/plain'
       },
       body: `search "${gameName}";
-            fields name,cover.url,screenshots.url;
-            where screenshots != null | cover != null;
+            fields name,cover.image_id,screenshots.image_id;
+            where cover != null;
             limit 1;`
     });
 
@@ -68,25 +73,20 @@ async function searchGame(gameName: string, retryCount = 0): Promise<string | nu
     const games = await response.json() as IGDBGame[];
 
     if (!games.length) {
-      return null;
+      return { screenshot: null, cover: null };
     }
 
     const game = games[0];
+    
+    const screenshot = game.screenshots?.[0]?.image_id
+      ? `https://images.igdb.com/igdb/image/upload/t_screenshot_big/${game.screenshots[0].image_id}.jpg`
+      : null;
 
-    // Try screenshots first, fallback to cover
-    if (game.screenshots?.length) {
-      return game.screenshots[0].url
-        .replace('t_thumb', 't_screenshot_big')
-        .replace('//', 'https://');
-    }
+    const cover = game.cover?.image_id
+      ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
+      : null;
 
-    if (game.cover?.url) {
-      return game.cover.url
-        .replace('t_thumb', 't_cover_big')
-        .replace('//', 'https://');
-    }
-
-    return null;
+    return { screenshot, cover };
   } catch (error) {
     if (retryCount < 3) {
       await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
@@ -96,13 +96,14 @@ async function searchGame(gameName: string, retryCount = 0): Promise<string | nu
   }
 }
 
-const cache = new Map<string, { url: string | null; timestamp: number }>();
+const cache = new Map<string, { images: GameImages; timestamp: number }>();
 const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const gameName = searchParams.get('name');
+    const type = searchParams.get('type') || 'screenshot';
 
     if (!IGDB_CLIENT_ID || !IGDB_CLIENT_SECRET) {
       return NextResponse.json(
@@ -120,24 +121,25 @@ export async function GET(request: Request) {
 
     const cached = cache.get(gameName);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      const url = type === 'cover' ? cached.images.cover : cached.images.screenshot;
       return NextResponse.json(
-        cached.url ? { coverUrl: cached.url } : { error: 'Cover not found' },
-        { status: cached.url ? 200 : 404 }
+        url ? { coverUrl: url } : { error: 'Cover not found' },
+        { status: url ? 200 : 404 }
       );
     }
 
-    const coverUrl = await searchGame(gameName);
-    
-    cache.set(gameName, { url: coverUrl, timestamp: Date.now() });
+    const images = await searchGame(gameName);
+    cache.set(gameName, { images, timestamp: Date.now() });
 
-    if (!coverUrl) {
+    const url = type === 'cover' ? images.cover : images.screenshot;
+    if (!url) {
       return NextResponse.json(
         { error: 'Cover not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ coverUrl });
+    return NextResponse.json({ coverUrl: url });
   } catch (error) {
     console.error('API route error:', error);
     return NextResponse.json(
