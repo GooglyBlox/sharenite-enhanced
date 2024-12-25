@@ -17,7 +17,9 @@ export default function ProfileModal({ username, games, onClose, isShared = fals
 
   const calculateStats = () => {
     const totalGames = games.length;
-    const playedGames = games.filter(game => game.playTime && game.playTime !== "Never played").length;
+    const playedGames = games.filter(game => 
+      game.playTime && game.playTime !== "00:00:00"
+    ).length;
     const totalMinutes = games.reduce((total, game) => {
       if (!game.playTime || game.playTime === "Never played") return total;
       const [hours, minutes] = game.playTime.split(':').map(Number);
