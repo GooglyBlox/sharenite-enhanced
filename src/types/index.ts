@@ -2,10 +2,8 @@ export interface GameBasic {
     id: string;
     title: string;
     lastActivity: string;
-    lastActivityDate: string | '';
+    lastActivityDate: string;
     platform: string | null;
-    created_at: string | null;
-    updated_at: string | null;
     url: string;
 }
 

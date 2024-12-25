@@ -7,15 +7,16 @@ export async function GET(
 ) {
   try {
     const api = new ShareniteAPI(params.username);
-    const { games, lastUpdated } = await api.fetchAllGames();
-
     const profile = await api.validateProfile();
+    
     if (!profile) {
       return NextResponse.json(
         { error: 'Profile not found or not public' },
         { status: 404 }
       );
     }
+
+    const { games, lastUpdated } = await api.fetchAllGames();
 
     return NextResponse.json({
       username: params.username,
