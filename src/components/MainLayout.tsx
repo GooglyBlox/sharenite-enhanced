@@ -4,6 +4,8 @@ import { Menu, Grid, List, RefreshCw, Clock, Plus, Trophy } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import GameCover from './GameCover';
 import ProfileModal from './ProfileModal';
+import Dropdown from './ui/dropdown';
+import SearchBar from './ui/searchbar';
 import { ShareniteAPI } from '@/utils/api';
 import { GameDetailed, ShareniteState } from '@/types';
 
@@ -350,23 +352,23 @@ export default function MainLayout({ username }: MainLayoutProps) {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                <input
-                  type="text"
-                  placeholder="Search games..."
-                  className="px-3 py-2 bg-zinc-800 rounded border border-zinc-700 focus:border-zinc-600 focus:outline-none"
+                <SearchBar
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={setSearchQuery}
+                  placeholder="Search games..."
+                  className="w-full sm:w-auto min-w-[250px]"
                 />
 
                 <div className="flex gap-2">
-                  <select
-                    className="px-3 py-2 bg-zinc-800 rounded border border-zinc-700"
+                  <Dropdown
                     value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value as 'recent' | 'alphabetical')}
-                  >
-                    <option value="recent">Recently Played</option>
-                    <option value="alphabetical">Alphabetical</option>
-                  </select>
+                    onChange={(value) => setSortOrder(value as 'recent' | 'alphabetical')}
+                    options={[
+                      { value: 'recent', label: 'Recently Played' },
+                      { value: 'alphabetical', label: 'Alphabetical' }
+                    ]}
+                    className="w-50"
+                  />
 
                   <button
                     onClick={() => setState(prev => ({ ...prev, viewMode: 'grid' }))}
