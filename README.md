@@ -1,9 +1,14 @@
+<div align="center">
+
+<img src="public/sharenite-enhanced-logo.png" alt="Sharenite Enhanced Logo" width="96" height="96" style="vertical-align: middle" />
+
 # Sharenite Enhanced
 
 A modern, enhanced interface for viewing and managing your Sharenite game library.
 
-## Features
+</div>
 
+## Features
 - Grid and list views for your game collection
 - Game cover art integration via IGDB
 - Real-time updates and caching
@@ -13,7 +18,6 @@ A modern, enhanced interface for viewing and managing your Sharenite game librar
 - Dark mode by default
 
 ## Setup
-
 1. Clone the repository:
 ```bash
 git clone https://github.com/GooglyBlox/sharenite-enhanced.git
@@ -37,7 +41,6 @@ npm run dev
 ```
 
 ## Deployment
-
 Deploy easily with [Vercel](https://vercel.com):
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FGooglyBlox%2Fsharenite-enhanced)
@@ -49,12 +52,10 @@ npm run start
 ```
 
 ## Usage
-
 1. Visit the app
 2. Enter your Sharenite username
 3. Ensure your Sharenite profile is public
 4. Browse and manage your game collection
 
 ## License
-
 MIT
