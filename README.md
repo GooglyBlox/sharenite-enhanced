@@ -53,7 +53,7 @@ npm run start
 
 ## Usage
 1. Visit the app
-2. Enter your Sharenite username
+2. Enter your Sharenite profile URL
 3. Ensure your Sharenite profile is public
 4. Browse and manage your game collection
 
