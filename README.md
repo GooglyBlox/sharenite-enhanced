@@ -1,11 +1,8 @@
 <div align="center">
-
 <img src="public/sharenite-enhanced-logo.png" alt="Sharenite Enhanced Logo" width="96" height="96" style="vertical-align: middle" />
 
 # Sharenite Enhanced
-
 A modern, enhanced interface for viewing and managing your Sharenite game library.
-
 </div>
 
 ## Features
@@ -28,14 +25,24 @@ git clone https://github.com/GooglyBlox/sharenite-enhanced.git
 npm install
 ```
 
-3. Create a `.env` file with the following:
+3. Get your IGDB API credentials:
+   - Go to [Twitch Developers](https://dev.twitch.tv/console/apps)
+   - Sign in with your Twitch account (create one if needed)
+   - Click "Register Your Application"
+   - Set Name to "Sharenite Enhanced"
+   - Set OAuth Redirect URL to `http://localhost:3000`
+   - Set Category to "Website Integration"
+   - Once registered, you'll get your Client ID
+   - Generate a Client Secret from your new application's page
+
+4. Create a `.env` file with the following:
 ```
 IGDB_CLIENT_ID=your_client_id
 IGDB_CLIENT_SECRET=your_client_secret
 NEXT_PUBLIC_APP_URL=your_deployment_url
 ```
 
-4. Start the development server:
+5. Start the development server:
 ```bash
 npm run dev
 ```
@@ -56,6 +63,11 @@ npm run start
 2. Enter your Sharenite profile URL
 3. Ensure your Sharenite profile is public
 4. Browse and manage your game collection
+
+## Related Links
+- Official Sharenite Website: https://www.sharenite.link
+- Sharenite GitHub Repository: https://github.com/sharenite/sharenite
+- Playnite Addon: https://github.com/sharenite/playnite-sharenite
 
 ## License
 MIT
