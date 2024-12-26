@@ -47,7 +47,7 @@ export default function GameActions({
               }`}
             title={game.isCompleted ? 'Mark as incomplete' : 'Mark as completed'}
           >
-            <CheckSquare size={16} className={game.isCompleted ? 'fill-current' : ''} />
+            <CheckSquare size={16} className={game.isCompleted ? '' : ''} />
           </button>
         )}
       </div>
