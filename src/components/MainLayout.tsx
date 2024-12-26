@@ -1,6 +1,7 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import React, { useState, useEffect, useRef } from 'react';
-import { Menu, Grid, List, RefreshCw, Clock, Plus, Play, Heart, CheckSquare } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Menu, Grid, List, Clock, Plus, Play, Heart, CheckSquare } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import GameCover from './GameCover';
 import ProfileModal from './ProfileModal';
@@ -75,7 +76,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
       .trim();
   };
 
-  const handleToggleFavorite = (gameId: string) => {
+  const handleToggleFavorite = useCallback((gameId: string) => {
     setState(prev => {
       const updatedGames = prev.games.map(game =>
         game.id === gameId
@@ -95,7 +96,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
         games: updatedGames
       };
     });
-  };
+  }, []);
   
   const handleToggleCompleted = (gameId: string) => {
     setState(prev => {
@@ -255,17 +256,10 @@ export default function MainLayout({ username }: MainLayoutProps) {
     });
   };
 
-  const filteredGames = getFilteredAndSortedGames(state.games, searchQuery, state.sortOrder);
-
-  const formatLastUpdated = (date: Date) => {
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  };
+  const filteredGames = useMemo(() => 
+    getFilteredAndSortedGames(state.games, searchQuery, state.sortOrder),
+    [state.games, searchQuery, state.sortOrder, state.currentView]
+  );
 
   const formatPlaytime = (totalMinutes: number): string => {
     if (totalMinutes < 60) {

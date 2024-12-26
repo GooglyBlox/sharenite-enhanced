@@ -12,59 +12,69 @@ export default function GameCover({ title, className }: GameCoverProps) {
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-  const retryCountRef = useRef<number>(0);
+  const mountedRef = useRef(false);
 
   const { ref, inView } = useInView({
     triggerOnce: true,
     threshold: 0,
-    rootMargin: '100px 0px',
+    rootMargin: '200px 0px',
   });
 
   useEffect(() => {
-    const cache = CoverCache.getInstance();
-    const cachedUrl = cache.get(title);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-    if (cachedUrl !== null) {
-      setCoverUrl(cachedUrl);
-      setIsLoading(false);
-      return;
-    }
+  useEffect(() => {
+    let isCancelled = false;
 
-    if (!inView) return;
+    const loadCover = async () => {
+      if (!inView || isCancelled) return;
 
-    const fetchCover = async () => {
+      const cache = CoverCache.getInstance();
+      const cachedUrl = cache.get(title);
+
+      if (cachedUrl !== null) {
+        if (!isCancelled) {
+          setCoverUrl(cachedUrl);
+          setIsLoading(false);
+        }
+        return;
+      }
+
       try {
         setIsLoading(true);
         const response = await fetch(`/api/covers?name=${encodeURIComponent(title)}`);
         
+        if (isCancelled) return;
+
         if (!response.ok) {
-          if (response.status === 429 && retryCountRef.current < 3) {
-            retryCountRef.current += 1;
-            fetchTimeoutRef.current = setTimeout(fetchCover, 1000 * retryCountRef.current);
-            return;
-          }
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
+        if (isCancelled) return;
+
         cache.set(title, data.coverUrl);
         setCoverUrl(data.coverUrl);
         setIsError(false);
       } catch (error) {
-        console.error(`Error fetching cover for ${title}:`, error);
-        cache.set(title, null);
+        if (isCancelled) return;
+        console.error(`Error loading cover for ${title}:`, error);
         setIsError(true);
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
-    fetchCover();
+    loadCover();
 
     return () => {
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
+      isCancelled = true;
     };
   }, [title, inView]);
 

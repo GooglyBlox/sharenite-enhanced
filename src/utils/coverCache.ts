@@ -1,13 +1,43 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 class CoverCache {
-    private static instance: CoverCache;
-    private cache: Map<string, { url: string | null; timestamp: number }>;
-    private CACHE_DURATION = 24 * 60 * 60 * 1000;
-  
-    private constructor() {
-      this.cache = new Map();
-      this.loadFromStorage();
+  private static instance: CoverCache;
+  private cache: Map<string, { url: string | null; timestamp: number }>;
+  private readonly MAX_CACHE_SIZE = 200;
+  private readonly CACHE_DURATION = 24 * 60 * 60 * 1000;
+
+  private constructor() {
+    this.cache = new Map();
+    this.loadFromStorage();
+    
+    setInterval(() => this.cleanup(), 5 * 60 * 1000);
+  }
+
+  private cleanup() {
+    const now = Date.now();
+    let deleted = 0;
+    
+    for (const [key, value] of this.cache.entries()) {
+      if (now - value.timestamp > this.CACHE_DURATION) {
+        this.cache.delete(key);
+        deleted++;
+      }
     }
+
+    if (this.cache.size > this.MAX_CACHE_SIZE) {
+      const sortedEntries = Array.from(this.cache.entries())
+        .sort((a, b) => b[1].timestamp - a[1].timestamp);
+      
+      while (sortedEntries.length > this.MAX_CACHE_SIZE) {
+        const [key] = sortedEntries.pop()!;
+        this.cache.delete(key);
+        deleted++;
+      }
+    }
+
+    if (deleted > 0) {
+      this.saveToStorage();
+    }
+  }
   
     static getInstance(): CoverCache {
       if (!CoverCache.instance) {
