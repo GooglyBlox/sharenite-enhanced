@@ -6,6 +6,7 @@ import GameCover from './GameCover';
 import ProfileModal from './ProfileModal';
 import GameActions from './GameActions';
 import GameThumbnail from './GameThumbnail';
+import UpdateIndicator from './UpdateIndicator';
 import Dropdown from './ui/dropdown';
 import SearchBar from './ui/searchbar';
 import { ShareniteAPI } from '@/utils/api';
@@ -17,11 +18,14 @@ interface MainLayoutState extends ShareniteState {
   currentView: 'all' | 'recent' | 'not-started' | 'favorites' | 'current' | 'completed';
   sortOrder: 'last-played' | 'most-played' | 'alphabetical' | 'recently-added' | 'platform' | 'playtime';
   totalGames: number;
+  nextUpdateTime: number | null;
 }
 
 interface MainLayoutProps {
   username: string;
 }
+
+const UPDATE_INTERVAL = 30 * 60 * 1000;
 
 export default function MainLayout({ username }: MainLayoutProps) {
   const [state, setState] = useState<MainLayoutState>({
@@ -32,7 +36,8 @@ export default function MainLayout({ username }: MainLayoutProps) {
     lastUpdated: null,
     currentView: 'all',
     sortOrder: 'last-played',
-    totalGames: 0
+    totalGames: 0,
+    nextUpdateTime: null
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -112,6 +117,31 @@ export default function MainLayout({ username }: MainLayoutProps) {
         games: updatedGames
       };
     });
+  };
+
+  const handleRequestUpdate = async () => {
+    if (state.isUpdating || !apiRef.current) return;
+  
+    setState(prev => ({ ...prev, isUpdating: true }));
+    
+    try {
+      const { games, lastUpdated, profile } = await apiRef.current.fetchAllGames(false);
+      setState(prev => ({
+        ...prev,
+        games,
+        lastUpdated,
+        totalGames: profile?.totalGames || games.length,
+        isUpdating: false,
+        error: undefined,
+        nextUpdateTime: Date.now() + UPDATE_INTERVAL
+      }));
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        error: 'Error updating games',
+        isUpdating: false
+      }));
+    }
   };
 
   const loadGames = async () => {
@@ -490,12 +520,12 @@ export default function MainLayout({ username }: MainLayoutProps) {
                   {state.currentView === 'not-started' && 'Not Started'}
                 </h1>
                 {state.lastUpdated && (
-                  <div className="flex items-center space-x-2 text-sm text-zinc-400">
-                    {state.isUpdating && (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    )}
-                    <span>Updated {formatLastUpdated(state.lastUpdated)}</span>
-                  </div>
+                  <UpdateIndicator
+                    isUpdating={state.isUpdating}
+                    lastUpdated={state.lastUpdated}
+                    onRequestUpdate={handleRequestUpdate}
+                    updateInterval={UPDATE_INTERVAL}
+                  />
                 )}
               </div>
 
