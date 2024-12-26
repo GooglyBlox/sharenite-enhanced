@@ -446,28 +446,28 @@ export default function MainLayout({ username }: MainLayoutProps) {
             <div className="mt-auto">
             {isSidebarOpen ? (
                 <div className="rounded p-4">
-                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsProfileModalOpen(true)}>
-                    <div className="w-10 h-10 rounded bg-zinc-700 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-zinc-300">
-                        {username[0].toUpperCase()}
-                    </span>
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => setIsProfileModalOpen(true)}>
+                        <div className="w-10 h-10 rounded bg-zinc-700 flex items-center justify-center">
+                            <span className="text-lg font-semibold text-zinc-300">
+                                {(nickname || username)[0].toUpperCase()}
+                            </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-zinc-100 truncate">{nickname || username}</div>
+                            <div className="text-sm text-zinc-400">View Profile</div>
+                        </div>
                     </div>
-                    <div>
-                    <div className="font-semibold text-zinc-100">{nickname || username}</div>
-                    <div className="text-sm text-zinc-400">View Profile</div>
-                    </div>
-                </div>
                 </div>
             ) : (
                 <div 
-                className="flex justify-center w-full cursor-pointer"
-                onClick={() => setIsProfileModalOpen(true)}
+                    className="flex justify-center w-full cursor-pointer"
+                    onClick={() => setIsProfileModalOpen(true)}
                 >
-                <div className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-zinc-300">
-                    {username[0].toUpperCase()}
-                    </span>
-                </div>
+                    <div className="w-10 h-10 rounded bg-zinc-800 flex items-center justify-center">
+                        <span className="text-lg font-semibold text-zinc-300">
+                            {(nickname || username)[0].toUpperCase()}
+                        </span>
+                    </div>
                 </div>
             )}
             </div>

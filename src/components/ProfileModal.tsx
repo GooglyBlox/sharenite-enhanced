@@ -19,6 +19,8 @@ interface ProfileModalProps {
 
 export default function ProfileModal({ 
   username,
+  nickname: initialNickname,
+  onNicknameChange,
   totalGames,
   loadedGames,
   recentGames,
@@ -30,7 +32,7 @@ export default function ProfileModal({
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
-  const [nickname, setNickname] = useState(localStorage.getItem('sharenite-nickname') || username);
+  const [nickname, setNickname] = useState(initialNickname || localStorage.getItem('sharenite-nickname') || username);
 
   const calculateStats = () => {
     const playedGames = allGames.filter(game => 
@@ -83,6 +85,9 @@ export default function ProfileModal({
 
   const handleNicknameSave = () => {
     localStorage.setItem('sharenite-nickname', nickname);
+    if (onNicknameChange) {
+      onNicknameChange(nickname);
+    }
     setIsEditingNickname(false);
   };
 
@@ -94,58 +99,66 @@ export default function ProfileModal({
         <div className="p-6">
           <div className="flex justify-between items-start mb-6">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center">
-                <span className="text-3xl font-semibold text-zinc-300">
-                  {nickname[0].toUpperCase()}
-                </span>
-              </div>
-              <div>
-                {isEditingNickname ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 text-2xl font-bold"
-                      placeholder="Enter nickname"
-                    />
-                    <button
-                      onClick={handleNicknameSave}
-                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => {
-                        setNickname(localStorage.getItem('sharenite-nickname') || username);
-                        setIsEditingNickname(false);
-                      }}
-                      className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-2xl font-bold text-zinc-100">{nickname}</h2>
-                    {!isShared && (
-                      <button
-                        onClick={() => setIsEditingNickname(true)}
-                        className="text-zinc-400 hover:text-zinc-300"
-                        title="Edit nickname"
-                      >
-                        <Edit2 size={16} />
-                      </button>
+                <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center">
+                    <span className="text-3xl font-semibold text-zinc-300">
+                        {(nickname || username)[0].toUpperCase()}
+                    </span>
+                </div>
+                <div>
+                    {isEditingNickname ? (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={nickname}
+                                onChange={(e) => setNickname(e.target.value)}
+                                className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 text-2xl font-bold"
+                                placeholder="Enter nickname"
+                                maxLength={50}
+                            />
+                            <button
+                                onClick={() => {
+                                    handleNicknameSave();
+                                    if (onNicknameChange) {
+                                        onNicknameChange(nickname);
+                                    }
+                                }}
+                                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                            >
+                                Save
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setNickname(localStorage.getItem('sharenite-nickname') || username);
+                                    setIsEditingNickname(false);
+                                }}
+                                className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-2xl font-bold text-zinc-100 truncate max-w-[300px]">
+                                {nickname || username}
+                            </h2>
+                            {!isShared && (
+                                <button
+                                    onClick={() => setIsEditingNickname(true)}
+                                    className="text-zinc-400 hover:text-zinc-300"
+                                    title="Edit nickname"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
+                            )}
+                        </div>
                     )}
-                  </div>
-                )}
-                <p className="text-zinc-400">Game Collection</p>
-                {isLoading && loadedGames < totalGames && (
-                  <p className="text-sm text-zinc-500">
-                    Loading... ({loadedGames}/{totalGames} games)
-                  </p>
-                )}
-              </div>
+                    <p className="text-zinc-400">Game Collection</p>
+                    {isLoading && loadedGames < totalGames && (
+                        <p className="text-sm text-zinc-500">
+                            Loading... ({loadedGames}/{totalGames} games)
+                        </p>
+                    )}
+                </div>
             </div>
             {!isShared && (
               <button
