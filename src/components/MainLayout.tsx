@@ -16,6 +16,7 @@ interface MainLayoutState extends ShareniteState {
   lastUpdated: Date | null;
   currentView: 'all' | 'recent' | 'not-started' | 'favorites' | 'current' | 'completed';
   sortOrder: 'last-played' | 'most-played' | 'alphabetical' | 'recently-added' | 'platform' | 'playtime';
+  totalGames: number;
 }
 
 interface MainLayoutProps {
@@ -30,7 +31,8 @@ export default function MainLayout({ username }: MainLayoutProps) {
     isUpdating: false,
     lastUpdated: null,
     currentView: 'all',
-    sortOrder: 'last-played'
+    sortOrder: 'last-played',
+    totalGames: 0
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -118,11 +120,12 @@ export default function MainLayout({ username }: MainLayoutProps) {
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      const { games, lastUpdated } = await apiRef.current.fetchAllGames();
+      const { games, lastUpdated, profile } = await apiRef.current.fetchAllGames();
       setState(prev => ({
         ...prev,
         games,
         lastUpdated,
+        totalGames: profile?.totalGames || games.length,
         isLoading: false,
         error: undefined,
         isUpdating: false
@@ -410,7 +413,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
                     <div>
                         <div className="text-sm text-zinc-400">Total Games</div>
                         <div className="text-xl font-semibold text-zinc-100">
-                        {state.games.length}
+                          {state.totalGames}
                         </div>
                     </div>
                     <div>
@@ -579,7 +582,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
               username={username}
               nickname={nickname}
               onNicknameChange={(newNickname) => setNickname(newNickname)}
-              totalGames={state.profile?.totalGames || state.games.length}
+              totalGames={state.totalGames}
               loadedGames={state.games.length}
               recentGames={state.games
                 .filter(game => game.playTime && game.playTime !== "00:00:00")

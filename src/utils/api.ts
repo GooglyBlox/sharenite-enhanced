@@ -337,6 +337,8 @@ export class ShareniteAPI {
     const cached = this.getCache();
     const preferences = this.getPreferences();
     
+    const profile = await this.validateProfile();
+    
     if (useCache && cached?.games) {
       const gamesWithPreferences = cached.games.map(game => ({
         ...game,
@@ -349,7 +351,7 @@ export class ShareniteAPI {
       return { 
         games: gamesWithPreferences, 
         lastUpdated: cached.lastUpdated,
-        profile: cached.profile 
+        profile 
       };
     }
   
@@ -358,7 +360,7 @@ export class ShareniteAPI {
       ...game,
       ...preferences[game.id]
     }));
-    const profile = await this.validateProfile();
+
     return { games: gamesWithPreferences, lastUpdated: new Date(), profile };
   }
 
@@ -370,19 +372,18 @@ export class ShareniteAPI {
       const totalGamesText = $('p:contains("Total games listed:")').text();
       const totalGames = parseInt(totalGamesText.match(/\d+/)?.[0] || '0');
       
-      if (totalGames > 0) {
-        const games = $('.list-group-item').toArray();
-        const latestGame = games[1];
-        const lastUpdated = $(latestGame).find('abbr').attr('title') || '';
-        
-        return {
-          username: this.username,
-          totalGames,
-          lastUpdated
-        };
+      if (totalGames === 0) {
+        return undefined;
       }
 
-      return undefined;
+      const lastGameElement = $('.list-group-item').eq(1);
+      const lastUpdated = lastGameElement.find('abbr').attr('title') || new Date().toISOString();
+
+      return {
+        username: this.username,
+        totalGames,
+        lastUpdated
+      };
     } catch (error) {
       console.error('Error validating profile:', error);
       return undefined;
