@@ -1,7 +1,6 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Menu, Grid, List, Clock, Plus, Play, Heart, CheckSquare } from 'lucide-react';
+import { Menu, Grid, List, Clock, Plus, Play, Heart, CheckSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import GameCover from './GameCover';
 import ProfileModal from './ProfileModal';
@@ -20,6 +19,8 @@ interface MainLayoutState extends ShareniteState {
   sortOrder: 'last-played' | 'most-played' | 'alphabetical' | 'recently-added' | 'platform' | 'playtime';
   totalGames: number;
   nextUpdateTime: number | null;
+  currentPage: number;
+  itemsPerPage: number;
 }
 
 interface MainLayoutProps {
@@ -38,7 +39,9 @@ export default function MainLayout({ username }: MainLayoutProps) {
     currentView: 'all',
     sortOrder: 'last-played',
     totalGames: 0,
-    nextUpdateTime: null
+    nextUpdateTime: null,
+    currentPage: 1,
+    itemsPerPage: 100
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -46,7 +49,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
   const apiRef = useRef<ShareniteAPI | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [nickname, setNickname] = useState<string | null>(
-      localStorage.getItem('sharenite-nickname')
+    localStorage.getItem('sharenite-nickname')
   );
 
   useEffect(() => {
@@ -67,14 +70,6 @@ export default function MainLayout({ username }: MainLayoutProps) {
       unsubscribe();
     };
   }, [username]);
-
-  const normalizeTitle = (title: string) => {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
 
   const handleToggleFavorite = useCallback((gameId: string) => {
     setState(prev => {
@@ -177,14 +172,15 @@ export default function MainLayout({ username }: MainLayoutProps) {
     return (hours * 60) + minutes;
   };
 
-  const getFilteredAndSortedGames = (
+  const getFilteredAndSortedGames = useCallback((
     games: GameDetailed[],
     searchQuery: string,
-    sortOrder: MainLayoutState['sortOrder']
+    sortOrder: MainLayoutState['sortOrder'],
+    currentView: MainLayoutState['currentView']
   ): GameDetailed[] => {
     let filtered = [...games];
   
-    switch (state.currentView) {
+    switch (currentView) {
       case 'recent':
         filtered = filtered.filter(game => 
           game.playTime && game.playTime !== "00:00:00"
@@ -213,11 +209,10 @@ export default function MainLayout({ username }: MainLayoutProps) {
     }
   
     if (searchQuery) {
-      const normalizedQuery = normalizeTitle(searchQuery);
-      filtered = filtered.filter(game => {
-        const normalizedTitle = normalizeTitle(game.title);
-        return normalizedTitle.includes(normalizedQuery);
-      });
+      const normalizedQuery = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(game => 
+        game.title.toLowerCase().includes(normalizedQuery)
+      );
     }
   
     return filtered.sort((a, b) => {
@@ -228,7 +223,7 @@ export default function MainLayout({ username }: MainLayoutProps) {
           return timeB - timeA;
         
         case 'alphabetical':
-          return normalizeTitle(a.title).localeCompare(normalizeTitle(b.title));
+          return a.title.localeCompare(b.title);
         
         case 'last-played':
           const dateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
@@ -249,17 +244,110 @@ export default function MainLayout({ username }: MainLayoutProps) {
           return playtimeA - playtimeB;
         
         default:
-          const defaultDateA = a.lastActivityDate ? new Date(a.lastActivityDate) : new Date(0);
-          const defaultDateB = b.lastActivityDate ? new Date(b.lastActivityDate) : new Date(0);
-          return defaultDateB.getTime() - defaultDateA.getTime();
+          return 0;
       }
     });
-  };
+  }, []);
 
   const filteredGames = useMemo(() => 
-    getFilteredAndSortedGames(state.games, searchQuery, state.sortOrder),
-    [state.games, searchQuery, state.sortOrder, state.currentView]
+    getFilteredAndSortedGames(
+      state.games, 
+      searchQuery, 
+      state.sortOrder,
+      state.currentView
+    ),
+    [state.games, searchQuery, state.sortOrder, state.currentView, getFilteredAndSortedGames]
   );
+
+  const paginatedGames = useMemo(() => {
+    const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+    return filteredGames.slice(startIndex, startIndex + state.itemsPerPage);
+  }, [filteredGames, state.currentPage, state.itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredGames.length / state.itemsPerPage);
+
+  const handlePageChange = (page: number) => {
+    setState(prev => ({ ...prev, currentPage: page }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    setState(prev => ({ ...prev, currentPage: 1 }));
+  }, [searchQuery, state.currentView, state.sortOrder]);
+
+  const Pagination = () => {
+    if (totalPages <= 1) return null;
+
+    const visiblePages = 5;
+    let startPage = Math.max(1, state.currentPage - Math.floor(visiblePages / 2));
+    const endPage = Math.min(totalPages, startPage + visiblePages - 1);
+
+    if (endPage - startPage + 1 < visiblePages) {
+      startPage = Math.max(1, endPage - visiblePages + 1);
+    }
+
+    const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+
+    return (
+      <div className="flex justify-center items-center gap-2 my-6">
+        <button
+          onClick={() => handlePageChange(state.currentPage - 1)}
+          disabled={state.currentPage === 1}
+          className="p-2 rounded bg-zinc-800 text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <ChevronLeft size={20} />
+        </button>
+
+        {startPage > 1 && (
+          <>
+            <button
+              onClick={() => handlePageChange(1)}
+              className={`w-10 h-10 rounded ${
+                state.currentPage === 1 ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-300'
+              }`}
+            >
+              1
+            </button>
+            {startPage > 2 && <span className="text-zinc-500">...</span>}
+          </>
+        )}
+
+        {pages.map(page => (
+          <button
+            key={page}
+            onClick={() => handlePageChange(page)}
+            className={`w-10 h-10 rounded ${
+              state.currentPage === page ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-300'
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && <span className="text-zinc-500">...</span>}
+            <button
+              onClick={() => handlePageChange(totalPages)}
+              className={`w-10 h-10 rounded ${
+                state.currentPage === totalPages ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-300'
+              }`}
+            >
+              {totalPages}
+            </button>
+          </>
+        )}
+
+        <button
+          onClick={() => handlePageChange(state.currentPage + 1)}
+          disabled={state.currentPage === totalPages}
+          className="p-2 rounded bg-zinc-800 text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+    );
+  };
 
   const formatPlaytime = (totalMinutes: number): string => {
     if (totalMinutes < 60) {
@@ -584,18 +672,23 @@ export default function MainLayout({ username }: MainLayoutProps) {
                 <div className="text-center py-12">
                   <p className="text-zinc-400">No games found</p>
                 </div>
-              ) : state.viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filteredGames.map(game => (
-                    <GameCard key={game.id} game={game} />
-                  ))}
-                </div>
               ) : (
-                <div className="space-y-2">
-                  {filteredGames.map(game => (
-                    <GameListItem key={game.id} game={game} />
-                  ))}
-                </div>
+                <>
+                  {state.viewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {paginatedGames.map(game => (
+                        <GameCard key={game.id} game={game} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {paginatedGames.map(game => (
+                        <GameListItem key={game.id} game={game} />
+                      ))}
+                    </div>
+                  )}
+                  <Pagination />
+                </>
               )}
             </div>
           </main>
