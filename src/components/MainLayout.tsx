@@ -215,7 +215,9 @@ export default function MainLayout({ username }: MainLayoutProps) {
       );
     }
   
-    return filtered.sort((a, b) => {
+    return filtered
+    .filter(item => sortOrder !== 'playtime' || (item.playTime !== "Never played" && item.playTime !== "00:00:00"))
+    .sort((a, b) => {
       switch (sortOrder) {
         case 'most-played':
           const timeA = timeToMinutes(a.playTime || "00:00:00");
