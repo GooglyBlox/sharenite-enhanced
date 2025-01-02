@@ -31,7 +31,9 @@ export default function SharedProfilePage() {
   };
 
   const fetchGameDetails = async (url: string): Promise<any> => {
-    const response = await fetch(`/api/sharenite/game?url=${encodeURIComponent(url)}`);
+    const response = await fetch(`/api/sharenite/game?url=${encodeURIComponent(url)}`, {
+      cache: 'no-store'
+    });
     if (!response.ok) throw new Error('Failed to fetch game details');
     return await response.json();
   };
@@ -61,7 +63,8 @@ export default function SharedProfilePage() {
   const processBatch = async (games: any[], updateProgress = true) => {
     const batchSize = 5;
     const processedGames: GameDetailed[] = [];
-
+    const processedIds = new Set<string>();
+  
     for (let i = 0; i < games.length; i += batchSize) {
       const batch = games.slice(i, i + batchSize);
       const detailedGames = await Promise.all(
@@ -70,17 +73,31 @@ export default function SharedProfilePage() {
           ...await fetchGameDetailsWithRetry(game.url)
         }))
       );
-
-      processedGames.push(...detailedGames);
-
+  
+      const uniqueGames = detailedGames.filter(game => {
+        if (processedIds.has(game.id)) {
+          return false;
+        }
+        processedIds.add(game.id);
+        return true;
+      });
+  
+      processedGames.push(...uniqueGames);
+  
       if (updateProgress) {
-        setAllGames(prev => [...prev, ...detailedGames]);
-        setLoadedCount(prev => prev + detailedGames.length);
+        setAllGames(prev => {
+          const gameMap = new Map(prev.map(g => [g.id, g]));
+          uniqueGames.forEach(game => {
+            gameMap.set(game.id, game);
+          });
+          return Array.from(gameMap.values());
+        });
+        setLoadedCount(prev => prev + uniqueGames.length);
       }
-
+  
       await sleep(100);
     }
-
+  
     return processedGames;
   };
 
