@@ -29,7 +29,6 @@ export default function ProfileModal({
   isShared = false,
   isLoading = false
 }: ProfileModalProps) {
-  const [shareLink, setShareLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [nickname, setNickname] = useState(initialNickname || localStorage.getItem('sharenite-nickname') || username);
@@ -70,15 +69,9 @@ export default function ProfileModal({
     return parts.join(' ');
   };
 
-  const generateShareLink = () => {
-    const originalUsername = localStorage.getItem('sharenite-username') || username;
-    const link = `${window.location.origin}/profile/${originalUsername}`;
-    setShareLink(link);
-  };
-
   const copyToClipboard = async () => {
-    if (!shareLink) return;
-    await navigator.clipboard.writeText(shareLink);
+    const link = `${window.location.origin}/profile/${username}`;
+    await navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -254,39 +247,28 @@ export default function ProfileModal({
                   <Share2 size={20} className="text-zinc-400" />
                   <span className="font-medium text-zinc-100">Share Profile</span>
                 </div>
-                {!shareLink ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={`${window.location.origin}/profile/${username}`}
+                    readOnly
+                    className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-zinc-100 w-64"
+                  />
                   <button
-                    onClick={generateShareLink}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors"
+                    onClick={copyToClipboard}
+                    className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
+                    title={copied ? "Copied!" : "Copy to clipboard"}
                   >
-                    Generate Link
+                    {copied ? <Check size={20} className="text-green-500" /> : <Copy size={20} className="text-zinc-400" />}
                   </button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={shareLink}
-                      readOnly
-                      className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-zinc-100 w-64"
-                    />
-                    <button
-                      onClick={copyToClipboard}
-                      className="p-2 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
-                      title={copied ? "Copied!" : "Copy to clipboard"}
-                    >
-                      {copied ? <Check size={20} className="text-green-500" /> : <Copy size={20} className="text-zinc-400" />}
-                    </button>
-                  </div>
-                )}
+                </div>
               </div>
 
-              {shareLink && (
-                <Alert className="mt-4 bg-zinc-800 border-zinc-700">
-                  <AlertDescription>
-                    Anyone with this link can view your profile and game collection.
-                  </AlertDescription>
-                </Alert>
-              )}
+              <Alert className="mt-4 bg-zinc-800 border-zinc-700">
+                <AlertDescription>
+                  Anyone with this link can view your profile and game collection.
+                </AlertDescription>
+              </Alert>
             </div>
           )}
         </div>
