@@ -74,7 +74,7 @@ const CoverModal = ({ isOpen, onClose, title, currentUrl, onSave }: CoverModalPr
               )}
             </div>
 
-            <div className="w-full h-48 relative rounded overflow-hidden bg-zinc-800">
+            <div className="w-32 h-48 mx-auto relative rounded overflow-hidden bg-zinc-800">
               {previewUrl ? (
                 <Image
                   src={previewUrl}
