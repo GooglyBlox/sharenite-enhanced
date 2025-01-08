@@ -134,7 +134,7 @@ export default function GameThumbnail({ title, className }: GameThumbnailProps) 
     const cache = CoverCache.getInstance();
     const cachedUrl = cache.get(`thumb_${title}`);
 
-    if (cachedUrl !== null) {
+    if (cachedUrl !== null || cache.isManuallySet(`thumb_${title}`)) {
       setThumbnailUrl(cachedUrl);
       setIsLoading(false);
       return;
@@ -185,7 +185,7 @@ export default function GameThumbnail({ title, className }: GameThumbnailProps) 
 
   const handleSave = (newUrl: string | null) => {
     const cache = CoverCache.getInstance();
-    cache.set(`thumb_${title}`, newUrl);
+    cache.set(`thumb_${title}`, newUrl, true);
     setThumbnailUrl(newUrl);
     setIsModalOpen(false);
   };

@@ -150,7 +150,7 @@ export default function GameCover({ title, className }: GameCoverProps) {
       const cache = CoverCache.getInstance();
       const cachedUrl = cache.get(title);
 
-      if (cachedUrl !== null) {
+      if (cachedUrl !== null || cache.isManuallySet(title)) {
         if (!isCancelled) {
           setCoverUrl(cachedUrl);
           setIsError(false);
@@ -203,9 +203,8 @@ export default function GameCover({ title, className }: GameCoverProps) {
 
   const handleSave = (newUrl: string | null) => {
     const cache = CoverCache.getInstance();
-    cache.set(title, newUrl);
+    cache.set(title, newUrl, true);
     setCoverUrl(newUrl);
-    setIsError(false);
     setKey(prev => prev + 1);
     setIsModalOpen(false);
   };
