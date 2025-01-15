@@ -150,7 +150,7 @@ export default function GameCover({ title, className }: GameCoverProps) {
       const cache = CoverCache.getInstance();
       const cachedUrl = cache.get(title);
 
-      if (cachedUrl !== null || cache.isManuallySet(title)) {
+      if (cachedUrl !== null || cache.hasBeenFetched(title)) {
         if (!isCancelled) {
           setCoverUrl(cachedUrl);
           setIsError(false);
@@ -175,6 +175,7 @@ export default function GameCover({ title, className }: GameCoverProps) {
         if (isCancelled) return;
 
         cache.set(title, data.coverUrl);
+        cache.markAsFetched(title);
         setCoverUrl(data.coverUrl);
         setKey(prev => prev + 1);
         setIsError(false);
@@ -182,6 +183,7 @@ export default function GameCover({ title, className }: GameCoverProps) {
         if (isCancelled) return;
         console.error(`Error loading cover for ${title}:`, error);
         setIsError(true);
+        cache.markAsFetched(title);
       } finally {
         if (!isCancelled) {
           setIsLoading(false);
@@ -213,7 +215,7 @@ export default function GameCover({ title, className }: GameCoverProps) {
     setIsError(true);
     setCoverUrl(null);
     const cache = CoverCache.getInstance();
-    cache.set(title, null);
+    cache.set(title, null, true);
   };
 
   return (

@@ -2,19 +2,17 @@ interface CacheEntry {
   url: string | null;
   timestamp: number;
   manuallySet: boolean;
+  fetched: boolean;
 }
 
 class CoverCache {
   private static instance: CoverCache;
   private cache: Map<string, CacheEntry>;
-  private readonly MAX_CACHE_SIZE = 200;
-  private readonly CACHE_DURATION = 24 * 60 * 60 * 1000;
+  private readonly MAX_CACHE_SIZE = 500;
 
   private constructor() {
     this.cache = new Map();
     this.loadFromStorage();
-
-    setInterval(() => this.cleanup(), 5 * 60 * 1000);
   }
 
   public static getInstance(): CoverCache {
@@ -25,31 +23,18 @@ class CoverCache {
   }
 
   private cleanup() {
-    const now = Date.now();
-    let deleted = 0;
+    if (this.cache.size <= this.MAX_CACHE_SIZE) return;
 
-    for (const [key, value] of this.cache.entries()) {
-      if (now - value.timestamp > this.CACHE_DURATION) {
-        this.cache.delete(key);
-        deleted++;
-      }
+    const sortedEntries = Array.from(this.cache.entries())
+      .filter(([, value]) => !value.manuallySet)
+      .sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+    while (this.cache.size > this.MAX_CACHE_SIZE && sortedEntries.length > 0) {
+      const [key] = sortedEntries.shift()!;
+      this.cache.delete(key);
     }
 
-    if (this.cache.size > this.MAX_CACHE_SIZE) {
-      const sortedEntries = Array.from(this.cache.entries()).sort(
-        (a, b) => b[1].timestamp - a[1].timestamp
-      );
-
-      while (sortedEntries.length > this.MAX_CACHE_SIZE) {
-        const [key] = sortedEntries.pop()!;
-        this.cache.delete(key);
-        deleted++;
-      }
-    }
-
-    if (deleted > 0) {
-      this.saveToStorage();
-    }
+    this.saveToStorage();
   }
 
   private loadFromStorage() {
@@ -57,17 +42,14 @@ class CoverCache {
       const stored = localStorage.getItem("game-covers-cache");
       if (stored) {
         const parsed = JSON.parse(stored) as Record<string, CacheEntry>;
-        const now = Date.now();
-
         Object.entries(parsed).forEach(([key, value]) => {
-          if (now - value.timestamp < this.CACHE_DURATION) {
-            const entry: CacheEntry = {
-              url: value.url,
-              timestamp: value.timestamp,
-              manuallySet: value.manuallySet ?? false,
-            };
-            this.cache.set(key, entry);
-          }
+          const entry: CacheEntry = {
+            url: value.url,
+            timestamp: value.timestamp,
+            manuallySet: value.manuallySet ?? false,
+            fetched: value.fetched ?? false
+          };
+          this.cache.set(key, entry);
         });
       }
     } catch (error) {
@@ -91,13 +73,42 @@ class CoverCache {
   }
 
   public set(key: string, url: string | null, manuallySet = false) {
-    this.cache.set(key, { url, timestamp: Date.now(), manuallySet });
+    const existing = this.cache.get(key);
+
+    if (existing && (existing.fetched || existing.manuallySet) && !manuallySet) {
+      return;
+    }
+
+    this.cache.set(key, {
+      url,
+      timestamp: Date.now(),
+      manuallySet,
+      fetched: manuallySet || (existing?.fetched || false)
+    });
+
     this.saveToStorage();
+    this.cleanup();
   }
 
   public isManuallySet(key: string): boolean {
     const item = this.cache.get(key);
     return item?.manuallySet || false;
+  }
+
+  public hasBeenFetched(key: string): boolean {
+    const item = this.cache.get(key);
+    return item?.fetched || false;
+  }
+
+  public markAsFetched(key: string) {
+    const existing = this.cache.get(key);
+    if (existing && !existing.fetched) {
+      this.cache.set(key, {
+        ...existing,
+        fetched: true
+      });
+      this.saveToStorage();
+    }
   }
 
   public clear() {

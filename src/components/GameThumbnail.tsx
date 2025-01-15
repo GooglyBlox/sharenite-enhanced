@@ -19,28 +19,28 @@ interface CoverModalProps {
 
 const CoverModal = ({ isOpen, onClose, title, currentUrl, onSave }: CoverModalProps) => {
   const [url, setUrl] = useState(currentUrl || '');
-  const [previewUrl, setPreviewUrl] = useState(currentUrl);
   const [isValidUrl, setIsValidUrl] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
 
   useEffect(() => {
     setUrl(currentUrl || '');
-    setPreviewUrl(currentUrl);
+    setPreviewError(false);
   }, [currentUrl]);
 
   useEffect(() => {
     if (!url) {
       setIsValidUrl(true);
-      setPreviewUrl(null);
+      setPreviewError(false);
       return;
     }
     
     try {
       new URL(url);
       setIsValidUrl(true);
-      setPreviewUrl(url);
+      setPreviewError(false);
     } catch {
       setIsValidUrl(false);
-      setPreviewUrl(null);
+      setPreviewError(false);
     }
   }, [url]);
 
@@ -75,15 +75,15 @@ const CoverModal = ({ isOpen, onClose, title, currentUrl, onSave }: CoverModalPr
             </div>
 
             <div className="w-32 h-48 mx-auto relative rounded overflow-hidden bg-zinc-800">
-              {previewUrl ? (
+              {url && isValidUrl ? (
                 <Image
-                  src={previewUrl}
+                  src={url}
                   alt="Cover preview"
                   fill
                   className="object-cover"
                   onError={() => {
+                    setPreviewError(true);
                     setIsValidUrl(false);
-                    setPreviewUrl(null);
                   }}
                 />
               ) : (
@@ -103,7 +103,7 @@ const CoverModal = ({ isOpen, onClose, title, currentUrl, onSave }: CoverModalPr
               </button>
               <button
                 onClick={() => onSave(url || null)}
-                disabled={!isValidUrl}
+                disabled={!isValidUrl || previewError}
                 className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
@@ -121,8 +121,8 @@ export default function GameThumbnail({ title, className }: GameThumbnailProps) 
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const retryCountRef = useRef<number>(0);
+  const mountedRef = useRef(false);
 
   const { ref, inView } = useInView({
     triggerOnce: true,
@@ -131,55 +131,77 @@ export default function GameThumbnail({ title, className }: GameThumbnailProps) 
   });
 
   useEffect(() => {
-    const cache = CoverCache.getInstance();
-    const cachedUrl = cache.get(`thumb_${title}`);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-    if (cachedUrl !== null || cache.isManuallySet(`thumb_${title}`)) {
-      setThumbnailUrl(cachedUrl);
-      setIsLoading(false);
-      return;
-    }
+  useEffect(() => {
+    let isCancelled = false;
+    const cacheKey = `thumb_${title}`;
 
-    if (!inView) return;
+    const loadThumbnail = async () => {
+      if (!inView || isCancelled) return;
 
-    const fetchThumbnail = async () => {
+      const cache = CoverCache.getInstance();
+      const cachedUrl = cache.get(cacheKey);
+
+      if (cachedUrl !== null || cache.hasBeenFetched(cacheKey)) {
+        if (!isCancelled) {
+          setThumbnailUrl(cachedUrl);
+          setIsError(false);
+          setIsLoading(false);
+        }
+        return;
+      }
+
       try {
         setIsLoading(true);
+        setIsError(false);
         const response = await fetch(`/api/covers?name=${encodeURIComponent(title)}&type=cover`);
         
+        if (isCancelled) return;
+
         if (!response.ok) {
           if (response.status === 429 && retryCountRef.current < 3) {
             retryCountRef.current += 1;
-            fetchTimeoutRef.current = setTimeout(fetchThumbnail, 1000 * retryCountRef.current);
+            setTimeout(loadThumbnail, 1000 * retryCountRef.current);
             return;
           }
           throw new Error('Failed to fetch');
         }
         
         const data = await response.json();
+        if (isCancelled) return;
+
         if (!data.coverUrl) {
           throw new Error('No cover URL');
         }
         
         const url = data.coverUrl.replace('t_screenshot_big', 't_cover_big');
-        cache.set(`thumb_${title}`, url);
+        cache.set(cacheKey, url);
+        cache.markAsFetched(cacheKey);
         setThumbnailUrl(url);
         setIsError(false);
       } catch (error) {
+        if (isCancelled) return;
         console.error(`Error fetching thumbnail for ${title}:`, error);
-        cache.set(`thumb_${title}`, null);
         setIsError(true);
+        const cache = CoverCache.getInstance();
+        cache.set(cacheKey, null);
+        cache.markAsFetched(cacheKey);
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
-    fetchThumbnail();
+    loadThumbnail();
 
     return () => {
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
+      isCancelled = true;
     };
   }, [title, inView]);
 
@@ -217,6 +239,12 @@ export default function GameThumbnail({ title, className }: GameThumbnailProps) 
             sizes="(max-width: 768px) 100px"
             className="object-cover"
             loading="lazy"
+            onError={() => {
+              setIsError(true);
+              setThumbnailUrl(null);
+              const cache = CoverCache.getInstance();
+              cache.set(`thumb_${title}`, null, true);
+            }}
           />
         )}
 
