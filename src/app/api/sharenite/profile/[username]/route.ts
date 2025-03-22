@@ -3,8 +3,10 @@ import { ShareniteAPI } from '@/utils/api';
 
 export async function GET(
   request: Request,
-  { params }: { params: { username: string } }
+  context: { params: { username: string } }
 ) {
+  const { params } = context;
+  
   try {
     const api = new ShareniteAPI(params.username);
     const profile = await api.validateProfile();

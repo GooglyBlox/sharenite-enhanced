@@ -4,8 +4,10 @@ import { GameBasic } from '@/types';
 
 export async function GET(
   request: Request,
-  { params }: { params: { username: string } }
+  context: { params: { username: string } }
 ) {
+  const { params } = context;
+  
   try {
     const response = await fetch(`https://www.sharenite.link/profiles/${params.username}/games`);
     const html = await response.text();
