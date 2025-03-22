@@ -3,6 +3,9 @@
 
 # Sharenite Enhanced
 A modern, enhanced interface for viewing and managing your Sharenite game library.
+
+<img src="public/image.png" alt="Sharenite Enhanced Screenshot" style="vertical-align: middle" />
+
 </div>
 
 ## Features
