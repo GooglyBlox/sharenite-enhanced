@@ -1,13 +1,21 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
+import { getCacheHeaders, CACHE_TTL } from '@/lib/cache';
+
+interface PageGame {
+  id: string;
+  title: string;
+  lastActivity: string;
+  lastActivityDate: string;
+  url: string;
+}
 
 export async function GET(
   request: Request,
   context: { params: { username: string; page: string } }
 ) {
   const { params } = context;
-  
+
   try {
     const url = `https://www.sharenite.link/profiles/${params.username}/games?page=${params.page}&query=`;
 
@@ -25,7 +33,7 @@ export async function GET(
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    const games: any[] = [];
+    const games: PageGame[] = [];
     $('.list-group-item').each((_, element) => {
       const id = $(element).attr('id')?.replace('game_', '');
       if (!id || id === 'header') return;
@@ -62,8 +70,6 @@ export async function GET(
       }
     });
 
-    console.log(`Page ${params.page}: Found ${games.length} games. Total pages: ${totalPages}`);
-
     const currentPage = parseInt(params.page);
     const hasMore = currentPage < totalPages;
 
@@ -74,6 +80,8 @@ export async function GET(
         totalPages,
         hasMore
       }
+    }, {
+      headers: getCacheHeaders(CACHE_TTL.GAMES_LIST),
     });
   } catch (error) {
     console.error(`Error fetching page ${params.page}:`, error);

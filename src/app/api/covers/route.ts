@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getCache, setCache, cacheKeys, getCacheHeaders, CACHE_TTL } from '@/lib/cache';
 
 const IGDB_CLIENT_ID = process.env.IGDB_CLIENT_ID;
 const IGDB_CLIENT_SECRET = process.env.IGDB_CLIENT_SECRET;
@@ -77,7 +78,7 @@ async function searchGame(gameName: string, retryCount = 0): Promise<GameImages>
     }
 
     const game = games[0];
-    
+
     const screenshot = game.screenshots?.[0]?.image_id
       ? `https://images.igdb.com/igdb/image/upload/t_screenshot_big/${game.screenshots[0].image_id}.jpg`
       : null;
@@ -95,9 +96,6 @@ async function searchGame(gameName: string, retryCount = 0): Promise<GameImages>
     throw error;
   }
 }
-
-const cache = new Map<string, { images: GameImages; timestamp: number }>();
-const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
 export async function GET(request: Request) {
   try {
@@ -119,17 +117,22 @@ export async function GET(request: Request) {
       );
     }
 
-    const cached = cache.get(gameName);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      const url = type === 'cover' ? cached.images.cover : cached.images.screenshot;
+    const coverCacheKey = cacheKeys.cover(gameName);
+    const cached = await getCache<GameImages>(coverCacheKey);
+
+    if (cached) {
+      const url = type === 'cover' ? cached.cover : cached.screenshot;
       return NextResponse.json(
         url ? { coverUrl: url } : { error: 'Cover not found' },
-        { status: url ? 200 : 404 }
+        {
+          status: url ? 200 : 404,
+          headers: getCacheHeaders(CACHE_TTL.COVERS, true),
+        }
       );
     }
 
     const images = await searchGame(gameName);
-    cache.set(gameName, { images, timestamp: Date.now() });
+    await setCache(coverCacheKey, images, CACHE_TTL.COVERS);
 
     const url = type === 'cover' ? images.cover : images.screenshot;
     if (!url) {
@@ -139,7 +142,9 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({ coverUrl: url });
+    return NextResponse.json({ coverUrl: url }, {
+      headers: getCacheHeaders(CACHE_TTL.COVERS, true),
+    });
   } catch (error) {
     console.error('API route error:', error);
     return NextResponse.json(

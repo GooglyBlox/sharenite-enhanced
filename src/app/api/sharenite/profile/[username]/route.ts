@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { ShareniteAPI } from '@/utils/api';
+import { getCacheHeaders, CACHE_TTL } from '@/lib/cache';
 
 export async function GET(
   request: Request,
   context: { params: { username: string } }
 ) {
   const { params } = context;
-  
+
   try {
     const api = new ShareniteAPI(params.username);
     const profile = await api.validateProfile();
-    
+
     if (!profile) {
       return NextResponse.json(
         { error: 'Profile not found or not public' },
@@ -25,6 +26,8 @@ export async function GET(
       games,
       lastUpdated,
       profile
+    }, {
+      headers: getCacheHeaders(CACHE_TTL.GAMES_LIST),
     });
   } catch (error) {
     console.error('Error fetching profile:', error);

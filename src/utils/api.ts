@@ -3,7 +3,8 @@ import { GameBasic, GameDetailed, ShareniteProfile } from '@/types';
 
 const CACHE_KEY = 'sharenite-data';
 const PREFERENCES_KEY = 'sharenite-preferences';
-const UPDATE_INTERVAL = 1000 * 60 * 30;
+const UPDATE_INTERVAL = 1000 * 60 * 60 * 2;
+const STALE_TIME = 1000 * 60 * 60 * 24;
 
 interface CacheData {
   games: GameDetailed[];
@@ -17,33 +18,46 @@ interface GamePreferences {
   isCompleted: boolean;
 }
 
+interface GameDetails {
+  platform: string;
+  playTime: string | null;
+  playCount: number;
+  added: string | null;
+  modified: string | null;
+}
+
 type UpdateCallback = (games: GameDetailed[]) => void;
+
+const BATCH_SIZE = 50;
+const UPDATE_DEBOUNCE_MS = 500;
 
 export class ShareniteAPI {
   private baseUrl: string;
   private username: string;
   private updateCallbacks: UpdateCallback[] = [];
   private isUpdating = false;
+  private pendingUpdates: GameDetailed[] = [];
+  private updateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(username: string, fullUrl?: string) {
     if (fullUrl) {
-        try {
-            const url = new URL(fullUrl);
-            const match = url.pathname.match(/\/profiles\/(.+?)\/games/);
-            if (match) {
-                this.username = match[1];
-                this.baseUrl = `${url.origin}/profiles/${this.username}`;
-            } else {
-                this.username = username;
-                this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
-            }
-        } catch {
-            this.username = username;
-            this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
+      try {
+        const url = new URL(fullUrl);
+        const match = url.pathname.match(/\/profiles\/(.+?)\/games/);
+        if (match) {
+          this.username = match[1];
+          this.baseUrl = `${url.origin}/profiles/${this.username}`;
+        } else {
+          this.username = username;
+          this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
         }
-    } else {
+      } catch {
         this.username = username;
         this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
+      }
+    } else {
+      this.username = username;
+      this.baseUrl = `https://www.sharenite.link/profiles/${username}`;
     }
   }
 
@@ -58,12 +72,37 @@ export class ShareniteAPI {
     this.updateCallbacks.forEach(callback => callback(games));
   }
 
+  private queueUpdate(games: GameDetailed[]) {
+    this.pendingUpdates = games;
+
+    if (this.updateDebounceTimer) {
+      clearTimeout(this.updateDebounceTimer);
+    }
+
+    this.updateDebounceTimer = setTimeout(() => {
+      if (this.pendingUpdates.length > 0) {
+        this.notifyUpdates(this.pendingUpdates);
+      }
+      this.updateDebounceTimer = null;
+    }, UPDATE_DEBOUNCE_MS);
+  }
+
+  private flushUpdates() {
+    if (this.updateDebounceTimer) {
+      clearTimeout(this.updateDebounceTimer);
+      this.updateDebounceTimer = null;
+    }
+    if (this.pendingUpdates.length > 0) {
+      this.notifyUpdates(this.pendingUpdates);
+      this.pendingUpdates = [];
+    }
+  }
+
   private getPreferences(): Record<string, GamePreferences> {
     try {
       const stored = localStorage.getItem(PREFERENCES_KEY);
       return stored ? JSON.parse(stored) : {};
-    } catch (error) {
-      console.error('Error loading preferences:', error);
+    } catch {
       return {};
     }
   }
@@ -71,8 +110,8 @@ export class ShareniteAPI {
   private savePreferences(preferences: Record<string, GamePreferences>) {
     try {
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
-    } catch (error) {
-      console.error('Error saving preferences:', error);
+    } catch {
+      // Ignore storage errors
     }
   }
 
@@ -86,7 +125,7 @@ export class ShareniteAPI {
 
     const cached = this.getCache();
     if (cached) {
-      const updatedGames = cached.games.map(game => 
+      const updatedGames = cached.games.map(game =>
         game.id === gameId ? { ...game, ...updates } : game
       );
       this.setCache(updatedGames, cached.profile);
@@ -140,53 +179,38 @@ export class ShareniteAPI {
     return { games, hasNextPage };
   }
 
-  private async parseGameDetails(game: GameBasic): Promise<GameDetailed | null> {
-    try {
-      const baseUrl = typeof window === 'undefined' 
-        ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-        : '';
-      
-      const response = await fetch(
-        `${baseUrl}/api/sharenite/game?url=${encodeURIComponent(game.url)}`,
-        { 
-          headers: {
-            'Accept': 'application/json'
+  private async fetchGameDetailsBatch(games: GameBasic[]): Promise<Map<string, GameDetails>> {
+    const results = new Map<string, GameDetails>();
+
+    if (games.length === 0) return results;
+
+    const baseUrl = typeof window === 'undefined'
+      ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      : '';
+
+    for (let i = 0; i < games.length; i += BATCH_SIZE) {
+      const batch = games.slice(i, i + BATCH_SIZE);
+      const urls = batch.map(g => g.url);
+
+      try {
+        const response = await fetch(`${baseUrl}/api/sharenite/games/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls })
+        });
+
+        if (response.ok) {
+          const data = await response.json() as { games: Record<string, GameDetails> };
+          for (const [url, details] of Object.entries(data.games)) {
+            results.set(url, details);
           }
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch game details: ${response.status}`);
+      } catch {
+        // Continue with other batches on error
       }
-
-      const details = await response.json();
-      const preferences = this.getPreferences()[game.id] || {};
-
-      return {
-        ...game,
-        playTime: details.playTime || "00:00:00",
-        playCount: details.playCount || 0,
-        platform: details.platform || null,
-        added: details.added || null,
-        modified: details.modified || null,
-        isCustomGame: false,
-        isInstalled: false,
-        isInstalling: false,
-        isLaunching: false,
-        isRunning: false,
-        isUninstalling: false,
-        userScore: null,
-        communityScore: null,
-        criticScore: null,
-        version: null,
-        notes: null,
-        isFavorite: preferences.isFavorite || false,
-        isCompleted: preferences.isCompleted || false
-      };
-    } catch (error) {
-      console.error(`Error fetching details for game ${game.id}:`, error);
-      return null;
     }
+
+    return results;
   }
 
   private getCache(): CacheData | null {
@@ -201,8 +225,7 @@ export class ShareniteAPI {
         lastUpdated: new Date(data.lastUpdated),
         profile: data.profile
       };
-    } catch (error) {
-      console.error('Error reading cache:', error);
+    } catch {
       return null;
     }
   }
@@ -229,158 +252,138 @@ export class ShareniteAPI {
         profile
       };
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-    } catch (error) {
-      console.error('Error setting cache:', error);
+    } catch {
+      // Ignore storage errors
     }
   }
 
   private async fetchAndUpdateGames(existingGames: GameDetailed[] = []): Promise<GameDetailed[]> {
     this.isUpdating = true;
-    const updatedGames: GameDetailed[] = [...existingGames];
-    let currentPage = 1;
-    let hasNextPage = true;
-    let unchangedCount = 0;
     const isInitialLoad = existingGames.length === 0;
-    let cacheUpdateTimeout: NodeJS.Timeout | null = null;
-    const BATCH_SIZE = 10;
-  
-    const debouncedCacheUpdate = (games: GameDetailed[]) => {
-      if (cacheUpdateTimeout) {
-        clearTimeout(cacheUpdateTimeout);
-      }
-      cacheUpdateTimeout = setTimeout(() => {
-        this.setCache(games, undefined, true);
-      }, 1000);
-    };
-  
-    const processGameBatch = async (games: GameBasic[], existingGamesMap: Map<string, GameDetailed>) => {
-      const results: GameDetailed[] = [];
-      const updates: GameDetailed[] = [];
-      let hasChanges = false;
-  
-      for (let i = 0; i < games.length; i += BATCH_SIZE) {
-        const batch = games.slice(i, i + BATCH_SIZE);
-        const processedGames = await Promise.all(
-          batch.map(async (game) => {
-            const existingGame = existingGamesMap.get(game.id);
-            const details = await this.parseGameDetails(game);
-  
-            if (!details) return null;
-  
-            if (!existingGame) {
-              hasChanges = true;
-              updates.push(details);
-              return details;
-            }
-  
-            const hasChanged = 
-              details.playTime !== existingGame.playTime ||
-              details.lastActivityDate !== existingGame.lastActivityDate ||
-              details.playCount !== existingGame.playCount;
-  
-            if (hasChanged) {
-              hasChanges = true;
-              updates.push(details);
-              return details;
-            }
-  
-            return existingGame;
-          })
-        );
-  
-        results.push(...processedGames.filter((g): g is GameDetailed => g !== null));
-  
-        await new Promise(resolve => setTimeout(resolve, 10));
-  
-        if (updates.length >= BATCH_SIZE) {
-          if (isInitialLoad || hasChanges) {
-            this.notifyUpdates([...updatedGames, ...updates]);
-          }
-          updates.length = 0;
-        }
-      }
-  
-      return { results, hasChanges };
-    };
-  
+
     try {
       const existingGamesMap = new Map(existingGames.map(game => [game.id, game]));
-  
+      const preferences = this.getPreferences();
+      const allBasicGames: GameBasic[] = [];
+
+      let currentPage = 1;
+      let hasNextPage = true;
+      let unchangedPages = 0;
+
       while (hasNextPage) {
         const html = await this.fetchProfilePage(currentPage);
         const { games, hasNextPage: nextPage } = this.parseGamesList(html);
-  
-        const { results, hasChanges } = await processGameBatch(games, existingGamesMap);
-  
-        results.forEach(game => {
-          const index = updatedGames.findIndex(g => g.id === game.id);
-          if (index >= 0) {
-            updatedGames[index] = game;
-          } else {
-            updatedGames.push(game);
-          }
-        });
-  
-        if (hasChanges) {
-          debouncedCacheUpdate(updatedGames);
-          unchangedCount = 0;
+
+        const hasNewGames = games.some(g => !existingGamesMap.has(g.id));
+        if (!hasNewGames && !isInitialLoad) {
+          unchangedPages++;
+          if (unchangedPages >= 2) break;
         } else {
-          unchangedCount++;
+          unchangedPages = 0;
         }
-  
-        if (!isInitialLoad && unchangedCount >= 3) {
-          break;
-        }
-  
+
+        allBasicGames.push(...games);
         hasNextPage = nextPage;
         currentPage++;
-  
-        await new Promise(resolve => setTimeout(resolve, 100));
       }
-  
-      if (cacheUpdateTimeout) {
-        clearTimeout(cacheUpdateTimeout);
-      }
+
+      const detailsMap = await this.fetchGameDetailsBatch(allBasicGames);
+
+      const updatedGames: GameDetailed[] = allBasicGames.map(game => {
+        const existing = existingGamesMap.get(game.id);
+        const details = detailsMap.get(game.url);
+        const prefs = preferences[game.id] || {};
+
+        if (details) {
+          return {
+            ...game,
+            playTime: details.playTime || "00:00:00",
+            playCount: details.playCount || 0,
+            platform: details.platform || null,
+            added: details.added || null,
+            modified: details.modified || null,
+            isCustomGame: false,
+            isInstalled: false,
+            isInstalling: false,
+            isLaunching: false,
+            isRunning: false,
+            isUninstalling: false,
+            userScore: null,
+            communityScore: null,
+            criticScore: null,
+            version: null,
+            notes: null,
+            isFavorite: prefs.isFavorite || false,
+            isCompleted: prefs.isCompleted || false
+          };
+        }
+
+        if (existing) {
+          return { ...existing, ...prefs };
+        }
+
+        return {
+          ...game,
+          playTime: "00:00:00",
+          playCount: 0,
+          isCustomGame: false,
+          isInstalled: false,
+          isInstalling: false,
+          isLaunching: false,
+          isRunning: false,
+          isUninstalling: false,
+          userScore: null,
+          communityScore: null,
+          criticScore: null,
+          version: null,
+          notes: null,
+          isFavorite: prefs.isFavorite || false,
+          isCompleted: prefs.isCompleted || false
+        };
+      });
+
       this.setCache(updatedGames);
+      this.flushUpdates();
+
       return updatedGames;
-  
+
     } catch (error) {
       console.error('Error in fetchAndUpdateGames:', error);
       throw error;
     } finally {
       this.isUpdating = false;
-      if (cacheUpdateTimeout) {
-        clearTimeout(cacheUpdateTimeout);
-      }
     }
   }
 
-  async fetchAllGames(useCache = true): Promise<{ 
-    games: GameDetailed[]; 
+  async fetchAllGames(useCache = true): Promise<{
+    games: GameDetailed[];
     lastUpdated: Date | null;
     profile?: ShareniteProfile;
   }> {
     const cached = this.getCache();
     const preferences = this.getPreferences();
-    
+
     const profile = await this.validateProfile();
-    
+
     if (useCache && cached?.games) {
       const gamesWithPreferences = cached.games.map(game => ({
         ...game,
         ...preferences[game.id]
       }));
 
-      if (Date.now() - cached.timestamp > UPDATE_INTERVAL && !this.isUpdating) {
+      const cacheAge = Date.now() - cached.timestamp;
+
+      if (cacheAge > UPDATE_INTERVAL && cacheAge < STALE_TIME && !this.isUpdating) {
         this.fetchAndUpdateGames(gamesWithPreferences).catch(console.error);
       }
-      return { 
-        games: gamesWithPreferences, 
+
+      return {
+        games: gamesWithPreferences,
         lastUpdated: cached.lastUpdated,
-        profile 
+        profile
       };
     }
-  
+
     const games = await this.fetchAndUpdateGames();
     const gamesWithPreferences = games.map(game => ({
       ...game,
@@ -394,10 +397,10 @@ export class ShareniteAPI {
     try {
       const html = await this.fetchProfilePage();
       const $ = cheerio.load(html);
-      
+
       const totalGamesText = $('p:contains("Total games listed:")').text();
       const totalGames = parseInt(totalGamesText.match(/\d+/)?.[0] || '0');
-      
+
       if (totalGames === 0) {
         return undefined;
       }
@@ -410,8 +413,7 @@ export class ShareniteAPI {
         totalGames,
         lastUpdated
       };
-    } catch (error) {
-      console.error('Error validating profile:', error);
+    } catch {
       return undefined;
     }
   }

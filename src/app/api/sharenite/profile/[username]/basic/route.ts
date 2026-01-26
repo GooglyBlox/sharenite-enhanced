@@ -1,18 +1,33 @@
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 import { GameBasic } from '@/types';
+import { getCache, setCache, cacheKeys, getCacheHeaders, CACHE_TTL } from '@/lib/cache';
+
+interface BasicProfile {
+  username: string;
+  totalGames: number;
+  recentGames: GameBasic[];
+}
 
 export async function GET(
   request: Request,
   context: { params: { username: string } }
 ) {
   const { params } = context;
-  
+  const cacheKey = cacheKeys.profile(params.username);
+
+  const cached = await getCache<BasicProfile>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, {
+      headers: getCacheHeaders(CACHE_TTL.PROFILE),
+    });
+  }
+
   try {
     const response = await fetch(`https://www.sharenite.link/profiles/${params.username}/games`);
     const html = await response.text();
     const $ = cheerio.load(html);
-    
+
     const totalGamesText = $('p:contains("Total games listed:")').text();
     const totalGames = parseInt(totalGamesText.match(/\d+/)?.[0] || '0');
 
@@ -45,10 +60,16 @@ export async function GET(
       }
     });
 
-    return NextResponse.json({
+    const result: BasicProfile = {
       username: params.username,
       totalGames,
       recentGames: recentGames.slice(0, 5)
+    };
+
+    await setCache(cacheKey, result, CACHE_TTL.PROFILE);
+
+    return NextResponse.json(result, {
+      headers: getCacheHeaders(CACHE_TTL.PROFILE),
     });
   } catch (error) {
     console.error('Error fetching basic profile:', error);
